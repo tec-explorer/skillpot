@@ -5,6 +5,7 @@ import { skillDir } from '../paths';
 import { loadConfig } from './config';
 import { readSkillMeta } from '../util/frontmatter';
 import { storeSkillNames } from './store';
+import { VERSION } from '../version';
 
 /**
  * 最小 MCP server（stdio，newline-delimited JSON-RPC 2.0）：
@@ -12,7 +13,7 @@ import { storeSkillNames } from './store';
  * 通过 SKILLPOT_AGENT=<agentId> 或 tools/call 参数 agent 过滤，遵循开关矩阵。
  */
 
-const SERVER_INFO = { name: 'skillpot', version: '0.4.0' };
+const SERVER_INFO = { name: 'skillpot', version: VERSION };
 
 const TOOLS = [
   {

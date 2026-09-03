@@ -3,6 +3,11 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### Fixed
+- `--version` 与 MCP `serverInfo.version` 此前硬编码 `0.4.0`,现改为运行时从 `package.json` 读取,与包版本单一来源同步(新增 `src/version.ts`)
+
 ## [0.4.1] - 2026-09-04
 
 ### Added

@@ -23,13 +23,14 @@ import { updateSkills } from './core/update';
 import { startMcpServer } from './core/mcp-server';
 import { runTui } from './tui/index';
 import { renderTable } from './util/table';
+import { VERSION } from './version';
 
 const program = new Command();
 
 program
   .name('skillpot')
   .description('跨编程 Agent 的 Skill 管理器 —— 一处安装，按 Agent 开关，一处更新')
-  .version('0.4.0');
+  .version(VERSION);
 
 /** 统一错误出口：业务错误只打印消息，不打堆栈；兼容同步/异步 action */
 function run(fn: (...args: any[]) => unknown): (...args: any[]) => Promise<void> {
