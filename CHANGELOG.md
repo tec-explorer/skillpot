@@ -3,7 +3,7 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.4.1] - 2026-09-04
 
 ### Added
 - npm 分发支持：`prepare` 钩子（`npm install` / GitHub 直装 / `npm pack` 时自动构建 `dist`）与 `prepublishOnly` 钩子（发布前强制构建 + 测试，失败中断）
