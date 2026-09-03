@@ -38,7 +38,7 @@
 **安装 skillpot 本体**（三选一）：
 
 ```bash
-npm install -g skillpot                        # npm registry 安装；短别名 spot，或免安装 npx skillpot
+npm install -g @tec-explorer/skillpot          # npm registry 安装（tec-explorer 组织 scope）；短别名 spot，或免安装 npx @tec-explorer/skillpot
 npm install -g github:tec-explorer/skillpot    # GitHub 直装（安装时自动构建，无需等 npm 发布）
 npx github:tec-explorer/skillpot init          # 免安装直接运行
 ```

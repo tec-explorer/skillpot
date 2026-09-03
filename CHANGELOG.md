@@ -10,6 +10,7 @@
 - GitHub Actions 发布流水线：push `v*` 标签自动构建、测试并发布到 npm（带 provenance，需仓库配置 `NPM_TOKEN` secret）
 
 ### Changed
+- npm 包名改为 `@tec-explorer/skillpot`（挂 tec-explorer 组织 scope），`publishConfig.access: public` 保证 scope 包默认公开发布；bin 命令名 `skillpot` / `spot` 不变
 - `package.json` `repository.url` 修正为实际仓库地址 `tec-explorer/skillpot`
 - npm 包内容补充 `CHANGELOG.md`
 - README 安装说明补充 GitHub 直装 / npx / 源码三种方式

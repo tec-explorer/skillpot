@@ -246,7 +246,8 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 
 ## 13. 命名（已定）
 
-**skillpot**（npm 包名 + CLI 命令，2026-09-03 用户最终确认），短别名 `spot`。
+**skillpot**（CLI 命令，2026-09-03 用户最终确认），短别名 `spot`。
+npm 包名 `@tec-explorer/skillpot`（挂在 tec-explorer 组织 scope 下，2026-09-03 变更）；bin 命令名仍为 `skillpot` / `spot`。
 npm 查重：`skillpot` 可用；`skillhub`（v0.4.1，同类产品）与 `skillctl` 已被占用。
 命名沿革：SkillPort → skillspot → skillpot（同日两次更正，此后所有文档与代码均以 skillpot 为准）。
 

@@ -1,5 +1,5 @@
 {
-  "name": "skillpot",
+  "name": "@tec-explorer/skillpot",
   "version": "0.4.0",
   "description": "Cross-agent skill manager: install once, expose per coding agent (Claude Code / ZCode / Codex / OpenCode / Gemini CLI).",
   "repository": {
@@ -31,6 +31,9 @@
     "node": ">=18"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "skills",
     "agent-skills",
