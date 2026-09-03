@@ -35,9 +35,17 @@
 
 要求 Node ≥ 18。
 
-```bash
-npm install -g skillpot     # 或 npx skillpot；短别名 spot
+**安装 skillpot 本体**（三选一）：
 
+```bash
+npm install -g skillpot                        # npm registry 安装；短别名 spot，或免安装 npx skillpot
+npm install -g github:tec-explorer/skillpot    # GitHub 直装（安装时自动构建，无需等 npm 发布）
+npx github:tec-explorer/skillpot init          # 免安装直接运行
+```
+
+**常用命令**：
+
+```bash
 skillpot init                        # 初始化 ~/.skillpot 并检测本机 Agent
                                      # （仓库为空时会扫描各 Agent 已有 skill，交互询问是否移入）
 skillpot adopt --dry-run             # 预览：各 Agent 目录下有哪些 skill 可收编
@@ -50,7 +58,9 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 
 > Agent 在会话启动时扫描 skill 目录，enable/disable 后重启示例会话生效。
 
-git 安装：`skillpot add https://github.com/owner/skills.git#subdir`（浅克隆，`#` 后定位子目录；也支持 `file://` 本地仓库）。
+**安装 skill 来源**：`skillpot add https://github.com/owner/skills.git#subdir`（浅克隆，`#` 后定位子目录；也支持 `file://` 本地仓库）。
+
+**从源码运行**（开发模式）：clone 后 `npm install`（自动构建），再 `npm link` 即可全局使用 `skillpot`。
 
 ## 命令
 

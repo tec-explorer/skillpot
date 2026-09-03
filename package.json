@@ -4,7 +4,7 @@
   "description": "Cross-agent skill manager: install once, expose per coding agent (Claude Code / ZCode / Codex / OpenCode / Gemini CLI).",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zhangmingyong/skillpot.git"
+    "url": "git+https://github.com/tec-explorer/skillpot.git"
   },
   "bugs": {
     "url": "https://github.com/zhangmingyong/skillpot/issues"
@@ -15,10 +15,13 @@
     "spot": "dist/cli.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "npm run typecheck && rm -rf dist && esbuild src/cli.ts --bundle --platform=node --format=esm --target=node18 --jsx=automatic --alias:react-devtools-core=./src/shims/react-devtools-core.ts --banner:js='#!/usr/bin/env node\nimport { createRequire } from \"node:module\";\nconst require = createRequire(import.meta.url);' --outfile=dist/cli.mjs --log-level=warning && chmod +x dist/cli.mjs",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build && npm test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:e2e": "npm run build && bash scripts/e2e-sandbox.sh",

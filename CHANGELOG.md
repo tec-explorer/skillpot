@@ -3,6 +3,17 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### Added
+- npm 分发支持：`prepare` 钩子（`npm install` / GitHub 直装 / `npm pack` 时自动构建 `dist`）与 `prepublishOnly` 钩子（发布前强制构建 + 测试，失败中断）
+- GitHub Actions 发布流水线：push `v*` 标签自动构建、测试并发布到 npm（带 provenance，需仓库配置 `NPM_TOKEN` secret）
+
+### Changed
+- `package.json` `repository.url` 修正为实际仓库地址 `tec-explorer/skillpot`
+- npm 包内容补充 `CHANGELOG.md`
+- README 安装说明补充 GitHub 直装 / npx / 源码三种方式
+
 ## [0.4.0] - 2026-09-03
 
 ### Added
