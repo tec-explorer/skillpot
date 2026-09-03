@@ -1,0 +1,55 @@
+{
+  "name": "skillpot",
+  "version": "0.4.0",
+  "description": "Cross-agent skill manager: install once, expose per coding agent (Claude Code / ZCode / Codex / OpenCode / Gemini CLI).",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhangmingyong/skillpot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhangmingyong/skillpot/issues"
+  },
+  "homepage": "https://github.com/zhangmingyong/skillpot#readme",
+  "bin": {
+    "skillpot": "dist/cli.mjs",
+    "spot": "dist/cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "npm run typecheck && rm -rf dist && esbuild src/cli.ts --bundle --platform=node --format=esm --target=node18 --jsx=automatic --alias:react-devtools-core=./src/shims/react-devtools-core.ts --banner:js='#!/usr/bin/env node\nimport { createRequire } from \"node:module\";\nconst require = createRequire(import.meta.url);' --outfile=dist/cli.mjs --log-level=warning && chmod +x dist/cli.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "npm run build && bash scripts/e2e-sandbox.sh",
+    "dev": "npm run typecheck -- --watch"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "agent-skills",
+    "claude-code",
+    "codex",
+    "opencode",
+    "gemini-cli",
+    "zcode",
+    "cli"
+  ],
+  "dependencies": {
+    "commander": "^12.1.0",
+    "ink": "^5.2.0",
+    "picocolors": "^1.1.1",
+    "react": "^18.3.1",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/react": "^18.3.12",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.9"
+  }
+}

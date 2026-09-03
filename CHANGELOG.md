@@ -1,0 +1,44 @@
+# Changelog
+
+所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
+版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
+
+## [0.4.0] - 2026-09-03
+
+### Added
+- `adopt --move` 移动模式：内容拷入中央仓库后，把来源 Agent 目录下的原目录替换为 symlink（来源 Agent 自动开放）
+- `init` 空仓库检测提醒：自动扫描各已安装 Agent 的已有 skill，TTY 下交互询问是否移入
+- 对 `init`/`adopt` 等命令的收编来源标记（`adopt:<agent>:<path>`）
+
+### Fixed
+- commander 静默吞掉多余位置参数（连接符打错时 adopt 被忽略且无提示）→ 现在显式报错
+- 表格按 ANSI 剥离后的可见宽度对齐（修复彩色单元格错位）
+- **symlink 解引用**：拷贝/_checksum 此前不解引用符号链接，导致仓库出现外部链接与空内容哈希；现在仓库自包含只存真实内容
+
+### Changed
+- MCP `serverInfo.version` 与包版本同步维护
+
+## [0.3.0] - 2026-09-03
+
+### Added
+- `skillpot tui` 交互式开关矩阵（skill × Agent）：方向键移动、空格切换、整行开关、`--once` 静态输出；无 TTY 自动降级
+
+### Changed
+- 构建从 tsc 直出 CJS 切换为 esbuild 单文件 ESM 打包（`dist/cli.mjs`，内联 ink/react）；tsc 退为纯类型检查
+
+## [0.2.0] - 2026-09-03
+
+### Added
+- `adopt` 收编：把各 Agent 目录下已有 skill 拷入中央仓库（`--dry-run` 预览、`--for` 导入即开放）
+- `lint` 安全扫描：frontmatter 完整性 + 脚本高危模式（`rm -rf`、`curl|sh` 等）；`add` 自动执行
+- `update [--check]` + `skillspot.lock.json`：git 来源版本比对与原位替换
+- `skillpot mcp`：零依赖 stdio MCP server（`skillpot_list/read/search`），遵循开关矩阵过滤
+- enable/disable 输出"重启示例会话后生效"提示
+
+## [0.1.0] - 2026-09-03
+
+### Added
+- M1 MVP：`init / agents / add / list / enable / disable / remove / doctor`
+- 中央仓库 `~/.skillpot`（唯一真身 + config.yaml 开关矩阵 + state.json 链接台账）
+- 五家 Agent 适配器：Claude Code / ZCode / Codex CLI / OpenCode / Gemini CLI（symlink 落地策略）
+- symlink 跨 Agent 发现经 Claude Code 实测验证（M0）
