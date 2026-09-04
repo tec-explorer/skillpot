@@ -14,6 +14,9 @@ import { loadConfig } from './config';
 import { skillDir } from '../paths';
 import { addSkill } from './add';
 import { adoptSkills, scanAdoptable } from './adopt';
+import { readSkillDetail } from './skill-detail';
+import { uninstallSkill } from './uninstall';
+import { updateSkills } from './update';
 import { sanitizeSkillName } from '../util/frontmatter';
 
 /**
@@ -150,6 +153,28 @@ export async function handleApiRequest(
           : undefined,
       });
       return { status: 200, body: result };
+    }
+    if (method === 'GET' && pathname.startsWith('/api/skill/')) {
+      const name = decodeURIComponent(pathname.slice('/api/skill/'.length));
+      const detail = readSkillDetail(name);
+      if (!detail) return { status: 404, body: { error: `skill 不存在：${name}` } };
+      return { status: 200, body: { ...detail, lint: lintSkill(skillDir(name)) } };
+    }
+    if (method === 'POST' && pathname === '/api/update') {
+      const b = (body ?? {}) as { skill?: unknown; check?: unknown };
+      const results = updateSkills(
+        typeof b.skill === 'string' && b.skill ? b.skill : undefined,
+        { check: b.check === true },
+      );
+      return { status: 200, body: { results } };
+    }
+    if (method === 'POST' && pathname === '/api/remove') {
+      const b = (body ?? {}) as { skill?: unknown };
+      if (typeof b.skill !== 'string' || !b.skill) {
+        return { status: 400, body: { error: '需要 skill 字段' } };
+      }
+      uninstallSkill(b.skill);
+      return { status: 200, body: { ok: true, message: `已卸载 ${b.skill}` } };
     }
     if (method === 'GET' && pathname === '/api/doctor') {
       return { status: 200, body: { issues: runDoctor() } };

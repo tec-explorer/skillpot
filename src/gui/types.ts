@@ -93,3 +93,27 @@ export const ADOPT_STATUS_LABEL: Record<AdoptStatus, string> = {
   'skipped-invalid': '跳过',
   'dry-run': '待收编',
 };
+
+export interface SkillDetail {
+  name: string;
+  meta: { name?: string; description?: string } | null;
+  files: string[];
+  skillMd: string | null;
+  lint: LintIssue[];
+}
+
+export type UpdateStatus = 'up-to-date' | 'outdated' | 'updated' | 'local' | 'error';
+
+export interface UpdateResult {
+  skill: string;
+  status: UpdateStatus;
+  detail?: string;
+}
+
+export const UPDATE_STATUS_LABEL: Record<UpdateStatus, string> = {
+  'up-to-date': '＝ 已是最新',
+  outdated: '↑ 有更新',
+  updated: '✔ 已更新',
+  local: '· 本地来源',
+  error: '✗ 失败',
+};

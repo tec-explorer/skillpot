@@ -1,8 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import readline from 'node:readline';
 import { skillDir } from '../paths';
 import { loadConfig } from './config';
+import { readSkillDetail } from './skill-detail';
 import { readSkillMeta } from '../util/frontmatter';
 import { storeSkillNames } from './store';
 import { VERSION } from '../version';
@@ -103,30 +102,17 @@ export function handleMcpMessage(raw: string): string | null {
         if (name === 'skillpot_list') {
           text = fmtList(visibleSkills(args.agent ? String(args.agent) : undefined));
         } else if (name === 'skillpot_read') {
-          const dir = skillDir(String(args.skill));
-          if (!fs.existsSync(path.join(dir, 'SKILL.md'))) {
+          const detail = readSkillDetail(String(args.skill));
+          if (!detail || detail.skillMd === null) {
             return respond({
               content: [{ type: 'text', text: `skill not found: ${args.skill}` }],
               isError: true,
             });
           }
-          const files: string[] = [];
-          const walk = (d: string) => {
-            for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-              const p = path.join(d, e.name);
-              if (e.isDirectory()) {
-                files.push(path.relative(dir, p) + '/');
-                walk(p);
-              } else {
-                files.push(path.relative(dir, p));
-              }
-            }
-          };
-          walk(dir);
           text =
-            fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8') +
+            detail.skillMd +
             '\n\n--- files ---\n' +
-            files.sort().map((f) => '- ' + f).join('\n');
+            detail.files.map((f) => '- ' + f).join('\n');
         } else if (name === 'skillpot_search') {
           const q = String(args.query ?? '').toLowerCase();
           const list = visibleSkills().filter(

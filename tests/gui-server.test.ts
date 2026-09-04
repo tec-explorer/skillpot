@@ -257,6 +257,75 @@ describe('handleApiRequest', () => {
     expect(res.status).toBe(200);
     expect(Object.keys(res.body as Record<string, unknown>)).toEqual(['demo-skill']);
   });
+
+  it('GET /api/skill/:name 返回详情,未知 skill 404', async () => {
+    setupSkill();
+    const res = (await handleApiRequest(
+      'GET',
+      '/api/skill/demo-skill',
+      NO_QUERY,
+      null,
+      TOKEN,
+      undefined,
+    ))!;
+    expect(res.status).toBe(200);
+    const detail = res.body as { name: string; skillMd: string; files: string[] };
+    expect(detail.name).toBe('demo-skill');
+    expect(detail.skillMd).toContain('# Demo Skill');
+    expect(detail.files).toContain('SKILL.md');
+
+    const missing = (await handleApiRequest(
+      'GET',
+      '/api/skill/ghost',
+      NO_QUERY,
+      null,
+      TOKEN,
+      undefined,
+    ))!;
+    expect(missing.status).toBe(404);
+  });
+
+  it('POST /api/remove 卸载 config/仓库/链接,未知 skill 报错', async () => {
+    setupSkill();
+    enableSkill('demo-skill', ['claude-code']);
+    const res = (await handleApiRequest(
+      'POST',
+      '/api/remove',
+      NO_QUERY,
+      { skill: 'demo-skill' },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(res.status).toBe(200);
+    expect(loadConfig().skills['demo-skill']).toBeUndefined();
+    expect(fs.existsSync(skillDir('demo-skill'))).toBe(false);
+
+    const again = (await handleApiRequest(
+      'POST',
+      '/api/remove',
+      NO_QUERY,
+      { skill: 'demo-skill' },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(again.status).toBe(500);
+    expect((again.body as { error: string }).error).toContain("config 中没有 skill 'demo-skill'");
+  });
+
+  it('POST /api/update:local 来源报告 local,未知 skill 报 error', async () => {
+    setupSkill();
+    const res = (await handleApiRequest(
+      'POST',
+      '/api/update',
+      NO_QUERY,
+      { check: true },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(res.status).toBe(200);
+    const { results } = res.body as { results: { skill: string; status: string }[] };
+    expect(results).toEqual([{ skill: 'demo-skill', status: 'local', detail: expect.any(String) }]);
+  });
 });
 
 describe('startGuiServer', () => {

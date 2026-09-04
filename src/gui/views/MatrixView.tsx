@@ -7,6 +7,7 @@ interface Props {
   state: StateResp;
   reload: () => Promise<void>;
   toast: (text: string, bad?: boolean) => void;
+  onOpenDetail: (skill: string) => void;
 }
 
 /** 与 TUI cellGlyph 同一套语义：✓ 已开放 / ⚠ 漂移 / ! 异常 / × 外部占用 / · 未开放 */
@@ -37,7 +38,7 @@ function cellTitle(cs: CellState): string {
   return '未开放，点击开放';
 }
 
-export function MatrixView({ state, reload, toast }: Props) {
+export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const { matrix } = state;
 
@@ -88,7 +89,11 @@ export function MatrixView({ state, reload, toast }: Props) {
         <tbody>
           {matrix.skills.map((s) => (
             <tr key={s}>
-              <td className="skill-name" title={state.skills[s]?.source ?? ''}>
+              <td
+                className="skill-name link"
+                title={state.skills[s]?.source ?? ''}
+                onClick={() => onOpenDetail(s)}
+              >
                 {s}
               </td>
               {matrix.agents.map((a) => {

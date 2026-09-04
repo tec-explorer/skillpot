@@ -8,12 +8,10 @@ import pc from 'picocolors';
 import { agentHome, skillDir, storeDir } from './paths';
 import { AGENTS } from './agents/registry';
 import { detectAll } from './agents/detect';
-import { initStore, loadConfig, saveConfig } from './core/config';
-import {
-  removeSkillDir,
-  storeSkillNames,
-} from './core/store';
+import { initStore, loadConfig } from './core/config';
+import { storeSkillNames } from './core/store';
 import { addSkill } from './core/add';
+import { uninstallSkill } from './core/uninstall';
 import { disableSkill, enableSkill, resolveAgentIds, SyncResult } from './core/sync';
 import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
@@ -273,12 +271,7 @@ program
   .description('从中央仓库卸载 skill（撤下所有 Agent 的链接并删除文件）')
   .action(
     run((skill: string) => {
-      const config = loadConfig();
-      if (!config.skills[skill]) throw new Error(`config 中没有 skill '${skill}'`);
-      disableSkill(skill, AGENTS.map((a) => a.id));
-      removeSkillDir(skill);
-      delete config.skills[skill];
-      saveConfig(config);
+      uninstallSkill(skill);
       console.log(pc.green(`✔ 已卸载 ${skill}`));
     }),
   );
