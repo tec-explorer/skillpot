@@ -90,6 +90,7 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | `update [skill] [--check]` | 检查/应用 git 来源 skill 的更新 |
 | `gui [--port] [--host] [--no-open]` | Web 控制台：开关矩阵/体检/收编/安装/市场/维护 |
 | `market [url] [--refresh]` | 浏览技能源里的 skill（缺省扫描全部源） |
+| `sync [--file] [--export] [--dry-run]` | 团队对齐：按项目清单 `.skillpot.yaml` 安装/对齐 skill |
 | `source list\|add <url>\|remove <url>` | 市场源管理（内置官方源 + 自定义 git 源） |
 | `mcp` | 以 MCP server (stdio) 运行，供支持 MCP 的 Agent 消费 |
 | `tui [--once]` | 交互式开关矩阵；无 TTY 自动降级静态输出 |
@@ -111,6 +112,26 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 ## MCP bridge（C 档兜底）
 
 无原生 skills 目录的 Agent 可通过 MCP 消费中央仓库：把 `skillpot mcp`（stdio）注册为其 MCP server，即获得 `skillpot_list / skillpot_read / skillpot_search` 三个工具；用 `SKILLPOT_AGENT=<agentId>` 环境变量或 `agent` 参数按开关矩阵过滤，`disable` 对 MCP 通道同样即时生效。设计说明见 [docs/design/mcp-bridge.md](./docs/design/mcp-bridge.md)。
+
+## 团队协作
+
+在项目仓库里提交一份 `.skillpot.yaml` 清单，声明项目需要哪些 skill：
+
+```bash
+cd your-project
+skillpot sync --export          # 从当前中央仓库导出清单（可 --skill a,b 精选）
+git add .skillpot.yaml && git commit -m "chore: pin project skills"
+```
+
+团队成员克隆仓库后一键对齐——安装缺失的、重装与版本锁不一致的、应用清单里的开放矩阵：
+
+```bash
+skillpot sync           # 按 ./.skillpot.yaml 对齐；--dry-run 先预览
+```
+
+- 清单带 `checksum` 即**版本锁**：本机实际内容偏离清单会自动重装对齐；不带则只保证已安装、不主动更新
+- `local:` 来源无法跨机器对齐，导出时会给出警告
+- 对齐走与 `add` 相同的安装流程（含 lint、来源登记进 lockfile）
 
 ## 安全
 

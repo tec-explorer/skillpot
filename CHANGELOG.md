@@ -3,6 +3,13 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.9.0] - 2026-09-04
+
+### Added
+- **团队对齐（主线 B）**：项目级 `.skillpot.yaml` 清单 + `skillpot sync`——`sync --export` 从中央仓库导出清单（来源/版本锁/开放矩阵，`--skill` 精选，local 来源自动警告），成员 `sync` 一键对齐：安装缺失、按 checksum 锁重装内容漂移、应用开放矩阵；支持 `--dry-run` 预览
+- 对齐语义可预期：带 `checksum` 即版本锁（本地实际内容偏离清单自动重装）；不带则只保证已安装、不主动更新；`expose` 只做增量开启，不主动关闭
+- 对齐安装走与 `add` 相同流程（lint、来源登记、lockfile 刷新）
+
 ## [0.8.0] - 2026-09-04
 
 ### Added

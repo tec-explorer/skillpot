@@ -154,7 +154,21 @@ skillpot mcp
 
 零依赖 stdio MCP server,提供 `skillpot_list` / `skillpot_read` / `skillpot_search` 三个工具,遵循开关矩阵过滤(用 `SKILLPOT_AGENT=<agentId>` 指定视角)。任何支持 MCP 的 Agent 都能把 SkillPot 当作技能后端。
 
-## 10. 命令速查
+## 10. 团队协作：项目清单一键对齐
+
+在项目仓库提交 `.skillpot.yaml`，声明项目需要哪些 skill，成员一条命令对齐：
+
+```bash
+skillpot sync --export      # 队长：从中央仓库导出清单（--skill a,b 可精选）
+skillpot sync               # 成员：安装缺失、对齐版本锁、应用开放矩阵
+skillpot sync --dry-run     # 先预览将对齐的动作
+```
+
+- 清单带 `checksum` 即版本锁：本机内容偏离清单自动重装；不带只保证已装
+- `local:` 来源无法跨机器对齐（导出时警告）；建议团队 skill 一律走 git 源
+- 对齐安装同样经过 lint 与来源登记
+
+## 11. 命令速查
 
 | 命令 | 说明 |
 |---|---|
@@ -173,8 +187,9 @@ skillpot mcp
 | `skillpot mcp` | MCP server(stdio) |
 | `skillpot source list/add/remove` | 市场源管理 |
 | `skillpot market [url]` | 浏览源内 skill |
+| `skillpot sync [--export] [--dry-run]` | 团队对齐：按项目清单安装/对齐 |
 
-## 11. 支持的 Agent
+## 12. 支持的 Agent
 
 Claude Code、ZCode、Codex CLI、OpenCode、Gemini CLI、DeepSeek CLI(dsh)、Cursor,共七家。适配器 = 已确认的"用户级 skills 发现路径" + 二进制/目录指纹检测。新增 Agent:只要它扫描某个用户级目录下的 `SKILL.md` 目录,就能以约十行适配器接入(欢迎 PR)。
 

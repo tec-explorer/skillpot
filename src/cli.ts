@@ -14,6 +14,7 @@ import { addSkill } from './core/add';
 import { uninstallSkill } from './core/uninstall';
 import { addSource, listSources, removeSource, scanSource } from './core/market';
 import { runAudit } from './core/audit';
+import { exportManifest, SYNC_ACTION_LABELS, syncManifest } from './core/team-sync';
 import { disableSkill, enableSkill, resolveAgentIds, SyncResult } from './core/sync';
 import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
@@ -584,6 +585,55 @@ program
       console.log(
         pc.dim(`安装：skillpot add <源地址>#<子目录>，或在 GUI「市场」页一键安装并开放`),
       );
+    }),
+  );
+
+program
+  .command('sync')
+  .description('团队对齐：按项目清单（默认 ./.skillpot.yaml）安装/对齐 skill 并应用开放矩阵')
+  .option('--file <path>', '清单路径（默认 ./.skillpot.yaml）')
+  .option('--export', '把当前中央仓库导出为清单（配合 --file/--skill）')
+  .option('--skill <skills>', '导出时仅导出指定 skill（逗号分隔）')
+  .option('--dry-run', '只展示将对齐的动作，不做任何变更')
+  .action(
+    run(async (opts: { file?: string; export?: boolean; skill?: string; dryRun?: boolean }) => {
+      const file = path.resolve(opts.file ?? '.skillpot.yaml');
+      if (opts.export) {
+        const { manifest, warnings } = exportManifest(file, opts.skill?.split(','));
+        console.log(pc.green(`✔ 已导出 ${Object.keys(manifest.skills).length} 个 skill → ${file}`));
+        for (const w of warnings) console.log(pc.yellow(`⚠ ${w}`));
+        console.log(pc.dim('提交进项目仓库后，团队成员执行 skillpot sync 即可一键对齐'));
+        return;
+      }
+      const items = await syncManifest(file, { dryRun: opts.dryRun });
+      if (!items.length) {
+        console.log(pc.dim('清单为空，无可对齐内容'));
+        return;
+      }
+      console.log(
+        renderTable(
+          ['Skill', '动作', '说明'],
+          items.map((i) => [
+            i.skill,
+            SYNC_ACTION_LABELS[i.action] + (i.dryRun ? '（将执行）' : ''),
+            i.detail ?? '',
+          ]),
+        ),
+      );
+      const counts = items.reduce<Record<string, number>>((m, i) => {
+        m[i.action] = (m[i.action] ?? 0) + 1;
+        return m;
+      }, {});
+      const summary = Object.entries(counts)
+        .map(([k, v]) => `${SYNC_ACTION_LABELS[k as keyof typeof SYNC_ACTION_LABELS] ?? k} ${v}`)
+        .join('，');
+      console.log(
+        opts.dryRun
+          ? pc.dim(`以上为试运行结果（--dry-run），未做任何变更。${summary}`)
+          : pc.green(`对齐完成：${summary}`),
+      );
+      const errors = items.filter((i) => i.action === 'error');
+      if (errors.length) process.exitCode = 1;
     }),
   );
 
