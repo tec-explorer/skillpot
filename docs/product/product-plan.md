@@ -225,7 +225,7 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 | 主线 | 内容 | 状态 |
 |---|---|---|
 | **A 安全纵深** | lint 补齐（凭据读取/外发外传检测）、`skillpot audit`（各 Agent 实际生效报告）、`update --diff`（更新前展示差异）、skills.sh audit 集成 | 🔨 进行中 |
-| **B 团队对齐** | 项目级 `.skillpot.yaml` + `skillpot sync`（成员按清单一键对齐安装与开放） | 📋 待开工 |
+| **B 团队对齐** | 项目级 `.skillpot.yaml` + `skillpot sync`（成员按清单一键对齐安装与开放） | ✅ 2026-09-04 交付 |
 | **C 覆盖与验证** | dsh/Cursor symlink 终验；不认 symlink 的 Agent 走 B 档 copy+sync；`--broadcast` 广播模式；Amp 等新 Agent 调研 | 🔁 随版本穿插 |
 | **D 生态与触达** | skills.sh 在线目录集成（先解 auth）；英文 README；Homebrew 分发 | 📋 排队 |
 
@@ -288,5 +288,7 @@ npm 查重：`skillpot` 可用；`skillhub`（v0.4.1，同类产品）与 `skill
 - [2026-09-03 收编交互与 move 模式执行报告](../reports/2026-09-03-adopt-move-ux-execution.md)
 - [2026-09-04 GUI G1 执行报告](../reports/2026-09-04-gui-g1-execution.md)
 - [2026-09-04 GUI G2/G3/G4 执行报告](../reports/2026-09-04-gui-g2-g3-g4-execution.md)
-- [2026-09-04 跟进批次(市场/适配器/矩阵优化)执行报告](../reports/2026-09-04-followups-market-execution.md)（最新）
+- [2026-09-04 跟进批次(市场/适配器/矩阵优化)执行报告](../reports/2026-09-04-followups-market-execution.md)
+- [2026-09-04 主线A 安全纵深执行报告(随 0.8.0 发布)](../reports/2026-09-04-followups-market-execution.md)
+- [2026-09-04 主线B 团队对齐执行报告](../reports/2026-09-04-team-sync-execution.md)（最新）
 
