@@ -11,7 +11,11 @@ import {
   loadManifest,
   syncManifest,
 } from '../src/core/team-sync';
+import { handleApiRequest, resetGuiCache } from '../src/core/gui-server';
 import { dirChecksum } from '../src/core/store';
+
+const TOKEN = 'test-token';
+const NO_QUERY = new URLSearchParams();
 import { agentHome, skillDir } from '../src/paths';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/demo-skill', import.meta.url));
@@ -188,3 +192,76 @@ function commitRepoChange(): void {
   execFileSync('git', ['-C', repo, 'add', '.']);
   execFileSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'v2']);
 }
+
+describe('团队 API(handleApiRequest)', () => {
+  it('inspect 标注本机状态;sync/export 走 HTTP 全链路;POST 缺 token 403', async () => {
+    const { handleApiRequest, resetGuiCache } = await import('../src/core/gui-server');
+    resetGuiCache();
+    const checksum = dirChecksum(repo);
+    const file = path.join(sandboxRoot, 'skillpot.yaml');
+    fs.writeFileSync(
+      file,
+      `version: 1\nskills:\n  team-skill:\n    source: git:file://${repo}\n    checksum: ${checksum}\n    expose:\n      claude-code: true\n`,
+    );
+
+    // GET inspect 缺 token 也可读(回环)
+    const ins = (await handleApiRequest(
+      'GET',
+      '/api/team/inspect',
+      new URLSearchParams({ file }),
+      null,
+      TOKEN,
+      undefined,
+    ))!;
+    expect(ins.status).toBe(200);
+    const body = ins.body as { skills: { installed: boolean; checksumMatch: boolean | null }[] };
+    expect(body.skills[0]).toMatchObject({ installed: false, checksumMatch: null });
+
+    // POST 无 token 403
+    const denied = (await handleApiRequest(
+      'POST',
+      '/api/team/sync',
+      NO_QUERY,
+      { file },
+      TOKEN,
+      undefined,
+    ))!;
+    expect(denied.status).toBe(403);
+
+    // POST sync 带 token → 安装
+    const synced = (await handleApiRequest(
+      'POST',
+      '/api/team/sync',
+      NO_QUERY,
+      { file },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(synced.status).toBe(200);
+    expect(((synced.body as { items: { action: string }[] }).items)[0].action).toBe('install');
+
+    // 再 inspect:已安装且校验和一致
+    const ins2 = (await handleApiRequest(
+      'GET',
+      '/api/team/inspect',
+      new URLSearchParams({ file }),
+      null,
+      TOKEN,
+      undefined,
+    ))!;
+    const item2 = (ins2.body as { skills: { installed: boolean; checksumMatch: boolean | null }[] }).skills[0];
+    expect(item2.installed).toBe(true);
+    expect(item2.checksumMatch).toBe(true);
+
+    // export 覆盖清单
+    const exp = (await handleApiRequest(
+      'POST',
+      '/api/team/export',
+      NO_QUERY,
+      { file },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(exp.status).toBe(200);
+  });
+});

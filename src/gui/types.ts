@@ -137,3 +137,37 @@ export interface MarketSkill {
   description: string;
   installed: boolean;
 }
+
+export interface ManifestInspectItem {
+  skill: string;
+  source: string;
+  checksum?: string;
+  expose: Record<string, boolean>;
+  installed: boolean;
+  checksumMatch: boolean | null;
+  storeMissing?: boolean;
+  localOnly: boolean;
+}
+
+export interface ManifestInspect {
+  file: string;
+  skills: ManifestInspectItem[];
+  warnings: string[];
+}
+
+export type SyncAction = 'install' | 'reinstall' | 'ok' | 'skip' | 'error';
+
+export interface SyncItem {
+  skill: string;
+  action: SyncAction;
+  dryRun?: boolean;
+  detail?: string;
+}
+
+export const SYNC_ACTION_LABEL: Record<SyncAction, string> = {
+  install: '安装',
+  reinstall: '重装对齐',
+  ok: '已一致',
+  skip: '跳过',
+  error: '失败',
+};

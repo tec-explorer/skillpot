@@ -142,8 +142,17 @@ export async function syncManifest(
         continue;
       }
 
-      // 已安装：用本地仓库"实际内容"的校验和与清单锁对齐（可发现被手改的漂移）
-      if (entry.checksum && dirChecksum(skillDir(name)) !== entry.checksum) {
+      // 已登记：用本地仓库"实际内容"的校验和与清单锁对齐（可发现被手改的漂移）；
+      // 仓库目录缺失/损坏也视为偏离 → 走重装
+      let drifted = false;
+      if (entry.checksum) {
+        try {
+          drifted = dirChecksum(skillDir(name)) !== entry.checksum;
+        } catch {
+          drifted = true;
+        }
+      }
+      if (drifted) {
         if (opts.dryRun) {
           out.push({
             skill: name,
@@ -196,4 +205,66 @@ export function syncActionLabel(item: SyncItem): string {
 /** 校验和一致性小工具（测试/诊断用） */
 export function manifestChecksumOf(dir: string): string {
   return dirChecksum(dir);
+}
+
+export interface ManifestInspectItem {
+  skill: string;
+  source: string;
+  checksum?: string;
+  expose: Record<string, boolean>;
+  /** 本机是否已安装（config 登记） */
+  installed: boolean;
+  /** 已安装时：本地实际内容是否与清单 checksum 一致（清单未声明 checksum 时为 null） */
+  checksumMatch: boolean | null;
+  /** config 有登记但中央仓库目录已缺失 */
+  storeMissing?: boolean;
+  /** local 来源无法跨机器对齐 */
+  localOnly: boolean;
+}
+
+export interface ManifestInspect {
+  file: string;
+  skills: ManifestInspectItem[];
+  warnings: string[];
+}
+
+/** 清单体检：逐项标注本机安装状态与校验和一致性（GUI 预览用，无副作用） */
+export function inspectManifest(file: string): ManifestInspect {
+  const manifest = loadManifest(file);
+  const config = loadConfig();
+  const skills: ManifestInspectItem[] = [];
+  const warnings: string[] = [];
+
+  for (const [name, entry] of Object.entries(manifest.skills)) {
+    const installed = !!config.skills[name];
+    const localOnly = entry.source.startsWith('local:');
+    let checksumMatch: boolean | null = null;
+    let storeMissing = false;
+    if (installed && entry.checksum) {
+      try {
+        checksumMatch = dirChecksum(skillDir(name)) === entry.checksum;
+      } catch (e) {
+        checksumMatch = false; // config 有记录但仓库目录已缺失/损坏
+        storeMissing = !fs.existsSync(skillDir(name));
+      }
+    }
+    if (localOnly) {
+      warnings.push(
+        installed
+          ? `'${name}' 为 local 来源，跳过对齐（仅本机有意义）`
+          : `'${name}' 为 local 来源（${entry.source}）在本机不存在，sync 将跳过`,
+      );
+    }
+    skills.push({
+      skill: name,
+      source: entry.source,
+      checksum: entry.checksum,
+      expose: Object.fromEntries(Object.entries(entry.expose ?? {}).filter(([, v]) => v === true)),
+      installed,
+      checksumMatch,
+      storeMissing,
+      localOnly,
+    });
+  }
+  return { file, skills, warnings };
 }

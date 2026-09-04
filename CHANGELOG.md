@@ -3,6 +3,13 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.10.0] - 2026-09-04
+
+### Added
+- **GUI「团队」页签**：团队对齐可视化——填入清单路径即可**预览**（逐项标注本机安装状态/版本锁一致性/中央仓库缺失/local 仅本机有效），**对齐**一键执行（可**预演**不落地），**导出清单**从当前中央仓库生成；清单路径跨会话记忆
+- 新增 `inspectManifest`（清单体检）与 `/api/team/inspect|sync|export` 三个路由
+- 修复：清单体检对"config 有登记但中央仓库目录已删除"的损坏状态误报 ENOENT——现精确标注"中央仓库缺失（对齐将重装）"
+
 ## [0.9.0] - 2026-09-04
 
 ### Added

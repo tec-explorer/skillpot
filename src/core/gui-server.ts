@@ -25,6 +25,7 @@ import {
   removeSource,
   scanSource,
 } from './market';
+import { exportManifest, inspectManifest, syncManifest } from './team-sync';
 import { sanitizeSkillName } from '../util/frontmatter';
 
 /**
@@ -203,6 +204,31 @@ export async function handleApiRequest(
         }
       }
       return { status: 200, body: { changed, skipped } };
+    }
+    if (method === 'GET' && pathname === '/api/team/inspect') {
+      const file = query.get('file');
+      if (!file) return { status: 400, body: { error: '需要 file 查询参数（清单路径）' } };
+      const report = inspectManifest(file);
+      return { status: 200, body: report };
+    }
+    if (method === 'POST' && pathname === '/api/team/sync') {
+      const b = (body ?? {}) as { file?: unknown; dryRun?: unknown };
+      if (typeof b.file !== 'string' || !b.file) {
+        return { status: 400, body: { error: '需要 file 字段（清单路径）' } };
+      }
+      const items = await syncManifest(b.file, { dryRun: b.dryRun === true });
+      return { status: 200, body: { items } };
+    }
+    if (method === 'POST' && pathname === '/api/team/export') {
+      const b = (body ?? {}) as { file?: unknown; skills?: unknown };
+      if (typeof b.file !== 'string' || !b.file) {
+        return { status: 400, body: { error: '需要 file 字段（导出目标路径）' } };
+      }
+      const result = exportManifest(
+        b.file,
+        Array.isArray(b.skills) ? (b.skills.filter((x) => typeof x === 'string') as string[]) : undefined,
+      );
+      return { status: 200, body: result };
     }
     if (method === 'GET' && pathname === '/api/market/sources') {
       return { status: 200, body: { sources: listSources() } };

@@ -7,6 +7,7 @@ import { AdoptView } from './views/AdoptView';
 import { AddView } from './views/AddView';
 import { UpdateView } from './views/UpdateView';
 import { MarketView } from './views/MarketView';
+import { TeamView } from './views/TeamView';
 import { DetailModal } from './views/DetailModal';
 
 export interface Toast {
@@ -15,7 +16,7 @@ export interface Toast {
   bad?: boolean;
 }
 
-type Tab = 'matrix' | 'doctor' | 'adopt' | 'add' | 'market' | 'update';
+type Tab = 'matrix' | 'doctor' | 'adopt' | 'add' | 'market' | 'update' | 'team';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'matrix', label: '开关矩阵' },
@@ -24,6 +25,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'add', label: '安装' },
   { id: 'market', label: '市场' },
   { id: 'update', label: '维护' },
+  { id: 'team', label: '团队' },
 ];
 
 export function App() {
@@ -105,7 +107,7 @@ export function App() {
           <AddView agents={state.matrix.agents} reload={reload} toast={toast} />
         ) : tab === 'market' ? (
           <MarketView rev={rev} reload={reload} toast={toast} />
-        ) : (
+        ) : tab === 'update' ? (
           <UpdateView
             skills={Object.entries(state.skills)
               .map(([name, e]) => ({ name, source: e.source }))
@@ -114,6 +116,8 @@ export function App() {
             toast={toast}
             onOpenDetail={setDetailSkill}
           />
+        ) : (
+          <TeamView reload={reload} toast={toast} />
         )}
       </main>
 
