@@ -12,6 +12,9 @@ import { lintSkill } from './lint';
 import { storeSkillNames } from './store';
 import { loadConfig } from './config';
 import { skillDir } from '../paths';
+import { addSkill } from './add';
+import { adoptSkills, scanAdoptable } from './adopt';
+import { sanitizeSkillName } from '../util/frontmatter';
 
 /**
  * 本地 Web 控制台：
@@ -37,7 +40,7 @@ export interface GuiServerHandle {
 let agentCache: { at: number; agents: MatrixAgent[] } | null = null;
 const AGENT_CACHE_TTL_MS = 60_000;
 
-function cachedAgents(): MatrixAgent[] | undefined {
+function cachedAgents(): MatrixAgent[] {
   if (agentCache && Date.now() - agentCache.at < AGENT_CACHE_TTL_MS) return agentCache.agents;
   agentCache = { at: Date.now(), agents: deriveMatrix().agents };
   return agentCache.agents;
@@ -57,17 +60,17 @@ function lintAll(): Record<string, unknown> {
 }
 
 /**
- * 纯函数 API 路由：入参全部来自请求的解构，出参为 {status, body}。
+ * 纯函数 API 路由：入参全部来自请求的解构，出参为 {status, body}（add/adopt 等涉及 git 的操作为 async）。
  * 返回 null 表示不是 API 路径（交给静态资源层）。
  */
-export function handleApiRequest(
+export async function handleApiRequest(
   method: string,
   pathname: string,
   query: URLSearchParams,
   body: unknown,
   expectedToken: string,
   gotToken: string | undefined,
-): ApiResult | null {
+): Promise<ApiResult | null> {
   if (!pathname.startsWith('/api/')) return null;
 
   // 写操作必须携带启动 token
@@ -92,6 +95,61 @@ export function handleApiRequest(
         return { status: 400, body: { error: '需要 skill 与 agent 字符串字段' } };
       }
       return { status: 200, body: toggleCell(b.skill, b.agent) };
+    }
+    if (method === 'GET' && pathname === '/api/adopt') {
+      const config = loadConfig();
+      const agents = cachedAgents()
+        .filter((a) => a.installed)
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          skills: scanAdoptable(a.id).map((s) => {
+            let valid = true;
+            let inStore = false;
+            try {
+              const n = sanitizeSkillName(s.name);
+              inStore = !!config.skills[n] || fs.existsSync(skillDir(n));
+            } catch {
+              valid = false;
+            }
+            return { name: s.name, path: s.path, valid, inStore };
+          }),
+        }));
+      return { status: 200, body: { agents } };
+    }
+    if (method === 'POST' && pathname === '/api/adopt') {
+      const b = (body ?? {}) as {
+        picks?: { agent?: unknown; name?: unknown }[];
+        move?: unknown;
+        enableFor?: unknown;
+      };
+      const picks = (b.picks ?? []).filter(
+        (p): p is { agent: string; name: string } =>
+          typeof p?.agent === 'string' && typeof p?.name === 'string',
+      );
+      if (!picks.length) return { status: 400, body: { error: '没有勾选任何可收编项' } };
+      const report = adoptSkills({
+        from: [...new Set(picks.map((p) => p.agent))],
+        only: picks,
+        move: b.move === true,
+        enableFor: Array.isArray(b.enableFor)
+          ? (b.enableFor.filter((x) => typeof x === 'string') as string[])
+          : undefined,
+      });
+      return { status: 200, body: report };
+    }
+    if (method === 'POST' && pathname === '/api/add') {
+      const b = (body ?? {}) as { source?: unknown; name?: unknown; for?: unknown };
+      if (typeof b.source !== 'string') {
+        return { status: 400, body: { error: '需要 source 字段（本地目录或 git URL）' } };
+      }
+      const result = await addSkill(b.source, {
+        name: typeof b.name === 'string' && b.name.trim() ? b.name.trim() : undefined,
+        for: Array.isArray(b.for)
+          ? (b.for.filter((x) => typeof x === 'string') as string[])
+          : undefined,
+      });
+      return { status: 200, body: result };
     }
     if (method === 'GET' && pathname === '/api/doctor') {
       return { status: 200, body: { issues: runDoctor() } };
@@ -206,7 +264,7 @@ export async function startGuiServer(
       if (url.pathname.startsWith('/api/')) {
         const body = req.method === 'POST' ? await readBody(req) : null;
         const rawToken = req.headers['x-skillpot-token'];
-        const out = handleApiRequest(
+        const out = await handleApiRequest(
           req.method ?? 'GET',
           url.pathname,
           url.searchParams,

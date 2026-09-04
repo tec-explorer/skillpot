@@ -10,11 +10,10 @@ import { AGENTS } from './agents/registry';
 import { detectAll } from './agents/detect';
 import { initStore, loadConfig, saveConfig } from './core/config';
 import {
-  installFromGit,
-  installFromLocal,
   removeSkillDir,
   storeSkillNames,
 } from './core/store';
+import { addSkill } from './core/add';
 import { disableSkill, enableSkill, resolveAgentIds, SyncResult } from './core/sync';
 import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
@@ -175,37 +174,27 @@ program
   )
   .option('-n, --name <name>', '指定 skill 名（默认取 frontmatter name 或目录名）')
   .action(
-    run((source: string, opts: { name?: string }) => {
-      initStore();
-      const isGit =
-        /^https?:\/\//.test(source) ||
-        /^git@/.test(source) ||
-        /^file:\/\//.test(source) ||
-        /\.git$/.test(source);
-      const res = isGit ? installFromGit(source, opts.name) : installFromLocal(source, opts.name);
-      const config = loadConfig();
-      config.skills[res.name] = {
-        source: isGit ? `git:${source}` : `local:${path.resolve(source)}`,
-        checksum: res.checksum,
-        installed_at: new Date().toISOString(),
-        expose: {},
-      };
-      saveConfig(config);
+    run(async (source: string, opts: { name?: string }) => {
+      const res = await addSkill(source, { name: opts.name });
       console.log(pc.green(`✔ 已安装 ${res.name}`));
       if (res.description) console.log(pc.dim(`  ${res.description.slice(0, 120)}`));
-      const issues = lintSkill(skillDir(res.name));
-      if (issues.length) {
-        for (const i of issues) {
-          const tag = i.level === 'error' ? pc.red('error') : pc.yellow('warn ');
-          console.log(`  ${tag} ${i.message}`);
-        }
-        console.log(pc.dim(`  lint: ${lintSummary(issues)}（skillpot lint ${res.name} 查看详情）`));
+      for (const i of res.lint) {
+        const tag = i.level === 'error' ? pc.red('error') : pc.yellow('warn ');
+        console.log(`  ${tag} ${i.message}`);
       }
-      console.log(
-        `默认未对任何 Agent 开放。执行 ${pc.cyan(
-          `skillpot enable ${res.name} --for <agents>`,
-        )}（agents: ${AGENTS.map((a) => a.id).join(',')} 或 all）`,
-      );
+      if (res.lint.length) {
+        console.log(pc.dim(`  lint: ${lintSummary(res.lint)}（skillpot lint ${res.name} 查看详情）`));
+      }
+      if (res.enabled.length) {
+        console.log(pc.green(`已开放：${res.enabled.join(', ')}`));
+        for (const s of res.skipped) console.log(pc.yellow(`⚠ ${s.agent}: ${s.reason}`));
+      } else {
+        console.log(
+          `默认未对任何 Agent 开放。执行 ${pc.cyan(
+            `skillpot enable ${res.name} --for <agents>`,
+          )}（agents: ${AGENTS.map((a) => a.id).join(',')} 或 all）`,
+        );
+      }
     }),
   );
 

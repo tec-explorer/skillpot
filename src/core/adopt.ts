@@ -81,6 +81,8 @@ export interface AdoptOptions {
   /** 移动模式：导入（或已有同名）后，把来源 Agent 目录下的原目录替换为指向中央仓库的 symlink */
   move?: boolean;
   dryRun?: boolean;
+  /** 只处理这些 (agent, name) 组合（GUI 勾选式收编）；缺省 = 扫描到的全部 */
+  only?: { agent: string; name: string }[];
 }
 
 /**
@@ -94,6 +96,9 @@ export function adoptSkills(opts: AdoptOptions = {}): AdoptReport {
     if (!getAgent(id)) throw new Error(`未知 agent '${id}'`);
   }
   const config = loadConfig();
+  const pickSet = opts.only
+    ? new Set(opts.only.map((o) => `${o.agent}\u0000${o.name}`))
+    : null;
   const items: AdoptItem[] = [];
   const importedNames: string[] = [];
   /** move 模式下待替换的来源目录（内容已确认在仓库后统一处理） */
@@ -107,6 +112,7 @@ export function adoptSkills(opts: AdoptOptions = {}): AdoptReport {
       continue;
     }
     for (const skill of found) {
+      if (pickSet && !pickSet.has(`${agentId}\u0000${skill.name}`)) continue;
       if (isManagedByStore(skill.path)) {
         items.push({ agent: agentId, name: skill.name, path: skill.path, status: 'skipped-managed' });
         continue;
