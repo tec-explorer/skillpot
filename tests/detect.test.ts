@@ -21,13 +21,15 @@ afterEach(() => {
 });
 
 describe('agent detect', () => {
-  it('注册表覆盖 M1 目标五家', () => {
+  it('注册表覆盖七家 Agent', () => {
     expect(AGENTS.map((a) => a.id)).toEqual([
       'claude-code',
       'zcode',
       'codex',
       'opencode',
       'gemini-cli',
+      'dsh',
+      'cursor',
     ]);
   });
 

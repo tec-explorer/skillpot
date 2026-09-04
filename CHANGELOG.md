@@ -3,6 +3,11 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.5.1] - 2026-09-04
+
+### Added
+- Agent 注册表扩至七家：新增 **DeepSeek CLI**（`~/.dsh/skills`）与 **Cursor**（`~/.cursor/skills-cursor`，官方 Agent Skills 目录）适配器；两者均为目录实测发现，symlink 发现任待实机确认
+
 ## [0.5.0] - 2026-09-04
 
 ### Added

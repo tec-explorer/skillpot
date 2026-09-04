@@ -30,7 +30,7 @@ function installFixture(): void {
 
 describe('resolveAgentIds', () => {
   it('all 展开为全部注册 agent', () => {
-    expect(resolveAgentIds('all')).toHaveLength(5);
+    expect(resolveAgentIds('all')).toHaveLength(7);
   });
   it('未知 id 报错', () => {
     expect(() => resolveAgentIds('nope')).toThrow(/未知 agent/);

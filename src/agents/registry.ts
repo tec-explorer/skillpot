@@ -51,6 +51,23 @@ export const AGENTS: AgentAdapter[] = [
     skillsDir: (home) => path.join(home, '.gemini', 'skills'),
     verified: '官方支持 Agent Skills，待实机确认',
   },
+  {
+    id: 'dsh',
+    name: 'DeepSeek CLI',
+    binaries: ['dsh'],
+    fingerprints: (home) => [path.join(home, '.dsh')],
+    skillsDir: (home) => path.join(home, '.dsh', 'skills'),
+    verified: '目录实测：~/.dsh/skills 为 SKILL.md 目录约定；symlink 发现任待 dsh 实机确认',
+  },
+  {
+    id: 'cursor',
+    name: 'Cursor',
+    binaries: ['cursor'],
+    fingerprints: (home) => [path.join(home, '.cursor')],
+    skillsDir: (home) => path.join(home, '.cursor', 'skills-cursor'),
+    verified:
+      '目录实测：~/.cursor/skills-cursor 为 Cursor Agent Skills（官方 create-skill 技能自述）；目录名非通用约定，symlink 发现任待实机确认',
+  },
 ];
 
 export function getAgent(id: string): AgentAdapter | undefined {
