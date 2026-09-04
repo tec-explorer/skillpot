@@ -49,6 +49,17 @@ export function runDoctor(): Issue[] {
     } catch {
       /* 缺失 */
     }
+    if (link.kind === 'copy') {
+      // B 档副本：应存在真实目录；内容与中央仓库的比对交给 update/enable 刷新
+      if (!st || !st.isDirectory()) {
+        issues.push({
+          level: 'error',
+          message: `副本缺失：${link.link_path}（${link.skill} @ ${link.agent}，重新 enable 可重建）`,
+          fix: 'drop-ledger',
+        });
+      }
+      continue;
+    }
     if (!st) {
       issues.push({
         level: 'error',
@@ -135,7 +146,11 @@ export function fixDoctor(): { fixed: string[]; remaining: Issue[] } {
   state.links = state.links.filter((l) => {
     let ok = false;
     try {
-      ok = fs.existsSync(l.link_path) && fs.lstatSync(l.link_path).isSymbolicLink();
+      if (l.kind === 'copy') {
+        ok = fs.existsSync(l.link_path) && fs.lstatSync(l.link_path).isDirectory();
+      } else {
+        ok = fs.existsSync(l.link_path) && fs.lstatSync(l.link_path).isSymbolicLink();
+      }
     } catch {
       ok = false;
     }

@@ -25,6 +25,8 @@ export interface LedgerLink {
   skill: string;
   agent: string;
   link_path: string;
+  /** 落地方式：symlink（默认）或 copy（B 档副本） */
+  kind?: 'symlink' | 'copy';
 }
 
 export interface SkillPotState {
@@ -52,6 +54,8 @@ export interface AgentAdapter {
   skillsDir: (home: string) => string;
   verified: string;
   note?: string;
+  /** 落地方式：symlink（默认，即时生效）；copy = B 档副本（symlink 不被跟随的 Agent 用，enable 时重新拷贝刷新） */
+  materialize?: 'symlink' | 'copy';
 }
 
 export interface Issue {

@@ -3,6 +3,14 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.11.0] - 2026-09-04
+
+### Added
+- **主线 C——落地策略**:B 档 copy 机制(适配器 `materialize: 'copy'`,enable 即重新拷贝刷新副本;doctor/台账/矩阵全链路兼容 copy)与**广播模式** `skillpot broadcast <skill> [--off]`(跨工具共享目录 `~/.agents/skills/`,显式开关、台账化)
+- **主线 D——skills.sh 目录集成**:`skillpot search <关键词>`(匿名 `/api/search`,带安装量,与官方 npx skills CLI 同源)与 `skillpot install-search <owner/repo/slug> [--for agents]`(克隆缓存解析子目录后安装)
+- Agent 注册表扩至八家:新增 **Amp**(`~/.config/amp/skills/`,官方文档确认);Cursor 验证依据升级为官方文档;dsh verified 按调研结论如实降级
+- 英文版 `README.en.md`(中英互链)
+
 ## [0.10.0] - 2026-09-04
 
 ### Added

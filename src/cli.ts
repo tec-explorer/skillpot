@@ -12,10 +12,10 @@ import { initStore, loadConfig } from './core/config';
 import { storeSkillNames } from './core/store';
 import { addSkill } from './core/add';
 import { uninstallSkill } from './core/uninstall';
-import { addSource, listSources, removeSource, scanSource } from './core/market';
+import { addSource, formatInstalls, installFromDirectory, listSources, removeSource, scanSource, searchDirectory } from './core/market';
 import { runAudit } from './core/audit';
 import { exportManifest, SYNC_ACTION_LABELS, syncManifest } from './core/team-sync';
-import { disableSkill, enableSkill, resolveAgentIds, SyncResult } from './core/sync';
+import { disableSkill, enableSkill, broadcastSkill, resolveAgentIds, SyncResult } from './core/sync';
 import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
 import { lintSkill, lintSummary } from './core/lint';
@@ -634,6 +634,61 @@ program
       );
       const errors = items.filter((i) => i.action === 'error');
       if (errors.length) process.exitCode = 1;
+    }),
+  );
+
+program
+  .command('broadcast <skill>')
+  .description('广播模式：把 skill 放进跨工具共享目录 ~/.agents/skills（粗粒度，所有支持该约定的 Agent 可见）')
+  .option('--off', '撤下广播')
+  .action(
+    run((skill: string, opts: { off?: boolean }) => {
+      const r = broadcastSkill(skill, opts.off === true);
+      if (r.changed) console.log(pc.green(`✔ ${r.message}`));
+      else console.log(pc.dim(r.message));
+    }),
+  );
+
+program
+  .command('search <query>')
+  .description('在 skills.sh 目录中搜索 skill（匿名联网，无需 token）')
+  .option('--limit <n>', '结果数量上限（默认 20）')
+  .action(
+    run(async (query: string, opts: { limit?: string }) => {
+      const skills = await searchDirectory(query, Number(opts.limit) || 20);
+      if (!skills.length) {
+        console.log(pc.dim('无结果'));
+        return;
+      }
+      console.log(
+        renderTable(
+          ['Skill', '安装量', 'id'],
+          skills.map((s) => [s.name, formatInstalls(s.installs), s.id]),
+        ),
+      );
+      console.log(pc.dim(`安装：skillpot install-search <id>（例：${skills[0].id}）`));
+    }),
+  );
+
+program
+  .command('install-search <id>')
+  .description('安装 skills.sh 目录中的 skill（id 形如 owner/repo/slug）')
+  .option('-f, --for <agents>', '安装后开放给指定 Agent（逗号分隔或 all）')
+  .action(
+    run(async (id: string, opts: { for?: string }) => {
+      const r = await installFromDirectory(id, {
+        for: opts.for ? resolveAgentIds(opts.for) : undefined,
+      });
+      console.log(pc.green(`✔ 已安装 ${r.name}`));
+      if (r.description) console.log(pc.dim(`  ${r.description.slice(0, 120)}`));
+      for (const i of r.lint) {
+        console.log(`  ${i.level === 'error' ? pc.red('error') : pc.yellow('warn ')} ${i.message}`);
+      }
+      if (r.enabled.length) console.log(pc.green(`已开放：${r.enabled.join(', ')}`));
+      else
+        console.log(
+          pc.dim('默认未开放。skillpot enable <skill> --for <agents> 或在 GUI 矩阵打勾'),
+        );
     }),
   );
 

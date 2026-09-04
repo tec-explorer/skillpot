@@ -9,6 +9,8 @@
 **跨编程 Agent 的 Skill 管理器 —— 一处安装，按 Agent 开关，一处更新。**
 *Cross-agent skill manager for coding agents: install once, expose per agent, update once.*
 
+[English](README.en.md) ｜ 中文
+
 > 编程 Agent(Claude Code、ZCode、Codex、OpenCode、Gemini CLI、DeepSeek CLI、Cursor…)已收敛到同一套 `SKILL.md` 开放标准,但发现路径各自为政:装进 `~/.claude/skills` 就只对 Claude Code 生效。SkillPot 把 skill 收进一个中央仓库,按 Agent 粒度开关暴露,并提供冲突体检与安全扫描。
 
 ![GUI 开关矩阵](docs/images/gui-matrix.png)

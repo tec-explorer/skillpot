@@ -151,3 +151,79 @@ export async function installFromMarket(
   }
   return addSkill(`${url}#${subdir}`, { name: opts.name, for: opts.for });
 }
+
+// —— skills.sh 目录（匿名 /api/search，与官方 npx skills CLI 同源）——
+
+export interface DirectorySkill {
+  /** 形如 owner/repo/slug */
+  id: string;
+  name: string;
+  /** owner/repo */
+  source: string;
+  installs: number;
+}
+
+/** 在 skills.sh 目录中搜索 skill（匿名，无需 token） */
+export async function searchDirectory(query: string, limit = 20): Promise<DirectorySkill[]> {
+  const q = query.trim();
+  if (!q) throw new Error('搜索词不能为空');
+  const res = await fetch(
+    `https://skills.sh/api/search?q=${encodeURIComponent(q)}&limit=${Math.min(Math.max(limit, 1), 200)}`,
+  );
+  if (!res.ok) throw new Error(`skills.sh 搜索失败：HTTP ${res.status}`);
+  const data = (await res.json()) as {
+    skills?: { id?: string; name?: string; installs?: number; source?: string }[];
+  };
+  return (data.skills ?? [])
+    .filter((s) => s.id && s.source)
+    .map((s) => ({
+      id: s.id!,
+      name: s.name ?? s.id!,
+      source: s.source!,
+      installs: s.installs ?? 0,
+    }));
+}
+
+/** 从目录 id（owner/repo/slug）解析仓库内子目录：克隆缓存后按 frontmatter name 或目录名匹配 */
+export async function resolveDirectorySkill(
+  id: string,
+): Promise<{ repoUrl: string; subdir: string }> {
+  const parts = id.split('/').filter(Boolean);
+  if (parts.length < 3) throw new Error(`id 形如 owner/repo/slug：${id}`);
+  const source = parts.slice(0, 2).join('/');
+  const slug = parts.slice(2).join('/').toLowerCase();
+  const repoUrl = `https://github.com/${source}.git`;
+  const { skills } = await scanSource(repoUrl);
+  const hit = matchDirectorySkill(skills, slug);
+  if (!hit) {
+    throw new Error(`在 ${source} 中找不到 skill '${slug}'（可运行 skillpot market ${repoUrl} 查看）`);
+  }
+  return { repoUrl, subdir: hit.subdir };
+}
+
+/** 目录候选匹配：frontmatter name 优先，目录名兜底（不区分大小写） */
+export function matchDirectorySkill(
+  skills: MarketSkill[],
+  slug: string,
+): MarketSkill | undefined {
+  const q = slug.toLowerCase();
+  return (
+    skills.find((s) => s.name.toLowerCase() === q) ??
+    skills.find((s) => (s.subdir.split('/').pop() ?? '').toLowerCase() === q)
+  );
+}
+
+export async function installFromDirectory(
+  id: string,
+  opts: { name?: string; for?: string[] } = {},
+): Promise<AddResult> {
+  const { repoUrl, subdir } = await resolveDirectorySkill(id);
+  return installFromMarket(repoUrl, subdir, opts);
+}
+
+export function formatInstalls(n: number): string {
+  if (!n || n <= 0) return '';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  return String(n);
+}

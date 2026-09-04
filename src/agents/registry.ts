@@ -58,7 +58,7 @@ export const AGENTS: AgentAdapter[] = [
     fingerprints: (home) => [path.join(home, '.dsh')],
     skillsDir: (home) => path.join(home, '.dsh', 'skills'),
     verified:
-      '目录约定同 Claude（~/.dsh/skills + SKILL.md）；目录内已存在用户手工创建并日常使用的 symlink，间接佐证 symlink 可被发现；dsh CLI 本机损坏（@deepseek-ai/dsh 模块缺失），待重装后最终确认',
+      '目录约定同 Claude（~/.dsh/skills + SKILL.md）；但 0.1.2-rc.1 代码未见 skills 读取逻辑（该目录的消费方待确认），纳管为前瞻性约定',
   },
   {
     id: 'cursor',
@@ -67,7 +67,15 @@ export const AGENTS: AgentAdapter[] = [
     fingerprints: (home) => [path.join(home, '.cursor')],
     skillsDir: (home) => path.join(home, '.cursor', 'skills'),
     verified:
-      '官方 create-skill 技能明确：个人技能目录为 ~/.cursor/skills/（项目为 .cursor/skills/）；symlink 发现任待实机确认',
+      '官方文档确认 ~/.cursor/skills/（个人）与 .cursor/skills/（项目）；symlink 发现任待实机确认',
+  },
+  {
+    id: 'amp',
+    name: 'Amp',
+    binaries: ['amp'],
+    fingerprints: (home) => [path.join(home, '.config', 'amp'), path.join(home, '.amp')],
+    skillsDir: (home) => path.join(home, '.config', 'amp', 'skills'),
+    verified: '官方文档确认 ~/.config/amp/skills/（用户级，多目录并读）；symlink 发现任待实机确认',
   },
 ];
 

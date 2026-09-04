@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { agentHome, skillDir } from '../paths';
 import { detectAll } from '../agents/detect';
-import { loadConfig } from '../core/config';
+import { loadConfig, loadState } from '../core/config';
 
 export interface CellState {
   /** 开关矩阵声明：应对该 Agent 开放 */
@@ -26,12 +26,12 @@ export interface Matrix {
   cells: Record<string, Record<string, CellState>>;
 }
 
-/**
- * 从 config + 各 Agent 目录现状推导矩阵（只读，不修改任何状态）。
+/** 从 config + 各 Agent 目录现状推导矩阵（只读，不修改任何状态）。
  * agents 可传入预计算的检测结果（GUI 服务端会缓存，避免每次拉状态都 spawn 二进制探测）。
  */
 export function deriveMatrix(agents?: MatrixAgent[]): Matrix {
   const config = loadConfig();
+  const state = loadState();
   const skills = Object.keys(config.skills).sort();
   const list =
     agents ??
@@ -42,6 +42,11 @@ export function deriveMatrix(agents?: MatrixAgent[]): Matrix {
       skillsDir: r.skillsDir,
     }));
   const cells: Record<string, Record<string, CellState>> = {};
+  const ledgeredCopy = (skill: string, agentId: string, target: string): boolean =>
+    state.links.some(
+      (l) =>
+        l.skill === skill && l.agent === agentId && l.link_path === target && l.kind === 'copy',
+    );
   for (const s of skills) {
     cells[s] = {};
     for (const a of list) {
@@ -51,7 +56,9 @@ export function deriveMatrix(agents?: MatrixAgent[]): Matrix {
       try {
         const st = fs.lstatSync(target);
         actual = true;
-        managed = st.isSymbolicLink() && fs.realpathSync(target) === fs.realpathSync(skillDir(s));
+        managed =
+          ledgeredCopy(s, a.id, target) ||
+          (st.isSymbolicLink() && fs.realpathSync(target) === fs.realpathSync(skillDir(s)));
       } catch {
         /* ENOENT：未暴露 */
       }

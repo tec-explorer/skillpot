@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeSandbox } from './util';
 import { initStore, loadConfig } from '../src/core/config';
 import {
@@ -12,6 +12,9 @@ import {
   OFFICIAL_URL,
   removeSource,
   scanSource,
+  searchDirectory,
+  resolveDirectorySkill,
+  matchDirectorySkill,
 } from '../src/core/market';
 import { handleApiRequest, resetGuiCache } from '../src/core/gui-server';
 
@@ -149,5 +152,41 @@ describe('市场 API(handleApiRequest)', () => {
     ))!;
     expect(inst.status).toBe(200);
     expect(loadConfig().skills['beta']).toBeTruthy();
+  });
+});
+
+describe('skills.sh 目录集成', () => {
+  it('searchDirectory 解析匿名 /api/search 响应', async () => {
+    const fixture = {
+      skills: [
+        { id: 'anthropics/skills/pdf', name: 'pdf', installs: 190459, source: 'anthropics/skills' },
+        { id: 'openai/skills/pdf', name: 'pdf', installs: 12053, source: 'openai/skills' },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => fixture }) as unknown as Response),
+    );
+    try {
+      const skills = await searchDirectory('pdf', 20);
+      expect(skills).toHaveLength(2);
+      expect(skills[0]).toMatchObject({ id: 'anthropics/skills/pdf', installs: 190459 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('resolveDirectorySkill 拒绝短 id(不发起网络请求)', async () => {
+    await expect(resolveDirectorySkill('owner/repo')).rejects.toThrow(/owner\/repo\/slug/);
+  });
+
+  it('matchDirectorySkill:frontmatter name 优先,目录名兜底', () => {
+    const candidates = [
+      { name: 'alpha', subdir: 'skills/alpha', description: '', installed: false },
+      { name: 'beta-skill', subdir: 'skills/beta', description: '', installed: false },
+    ];
+    expect(matchDirectorySkill(candidates, 'alpha')?.subdir).toBe('skills/alpha');
+    expect(matchDirectorySkill(candidates, 'beta')?.subdir).toBe('skills/beta');
+    expect(matchDirectorySkill(candidates, 'nope')).toBeUndefined();
   });
 });

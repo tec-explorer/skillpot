@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe('agent detect', () => {
-  it('注册表覆盖七家 Agent', () => {
+  it('注册表覆盖八家 Agent', () => {
     expect(AGENTS.map((a) => a.id)).toEqual([
       'claude-code',
       'zcode',
@@ -30,6 +30,7 @@ describe('agent detect', () => {
       'gemini-cli',
       'dsh',
       'cursor',
+      'amp',
     ]);
   });
 

@@ -39,9 +39,15 @@ function ledgerHas(state: SkillPotState, skill: string, agent: string, linkPath:
   );
 }
 
-function addLedger(state: SkillPotState, skill: string, agent: string, linkPath: string): void {
+function addLedger(
+  state: SkillPotState,
+  skill: string,
+  agent: string,
+  linkPath: string,
+  kind: 'symlink' | 'copy' = 'symlink',
+): void {
   if (!ledgerHas(state, skill, agent, linkPath)) {
-    state.links.push({ skill, agent, link_path: linkPath });
+    state.links.push({ skill, agent, link_path: linkPath, ...(kind === 'copy' ? { kind } : {}) });
   }
 }
 
@@ -53,6 +59,16 @@ function linkTarget(agentId: string, skill: string): string {
   const agent = getAgent(agentId);
   if (!agent) throw new Error(`未知 agent '${agentId}'`);
   return path.join(agent.skillsDir(agentHome()), skill);
+}
+
+function materializeOf(agentId: string): 'symlink' | 'copy' {
+  return getAgent(agentId)?.materialize ?? 'symlink';
+}
+
+/** copy 档：把中央仓库内容拷贝到目标位置（B 档：Agent 不跟随 symlink 时的降级） */
+function copyInto(src: string, target: string): void {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.cpSync(src, target, { recursive: true, dereference: true });
 }
 
 /**
@@ -73,11 +89,36 @@ export function enableSkill(skill: string, agentIds: string[]): SyncResult {
 
   for (const agentId of agentIds) {
     const target = linkTarget(agentId, skill);
+    const kind = materializeOf(agentId);
     let existing: fs.Stats | null = null;
     try {
       existing = fs.lstatSync(target);
     } catch {
       /* ENOENT：正常路径 */
+    }
+
+    if (kind === 'copy') {
+      if (existing) {
+        if (ledgerHas(state, skill, agentId, target)) {
+          // 已是本工具的副本：重新拷贝以刷新内容（enable 即同步）
+          fs.rmSync(target, { recursive: true, force: true });
+          copyInto(src, target);
+          addLedger(state, skill, agentId, target, 'copy');
+          entry.expose[agentId] = true;
+          linked.push(agentId);
+          continue;
+        }
+        skipped.push({
+          agent: agentId,
+          reason: `${target} 已存在真实${existing.isDirectory() ? '目录' : '文件'}（可能是同名 skill），拒绝覆盖`,
+        });
+        continue;
+      }
+      copyInto(src, target);
+      addLedger(state, skill, agentId, target, 'copy');
+      entry.expose[agentId] = true;
+      linked.push(agentId);
+      continue;
     }
 
     if (existing) {
@@ -155,6 +196,14 @@ export function disableSkill(skill: string, agentIds: string[]): SyncResult {
     }
 
     if (st) {
+      // copy 副本：台账内即本工具创建，直接删除
+      if (!st.isSymbolicLink() && ledgerHas(state, skill, agentId, target)) {
+        fs.rmSync(target, { recursive: true, force: true });
+        dropLedger(state, skill, agentId);
+        if (entry) entry.expose[agentId] = false;
+        linked.push(agentId);
+        continue;
+      }
       if (st.isSymbolicLink()) {
         let pointsToStore = false;
         try {
@@ -206,4 +255,68 @@ function safeReadlink(p: string): string {
   } catch {
     return '?';
   }
+}
+
+/**
+ * 广播模式（产品计划 §4）：把 skill 放进跨工具共享目录 ~/.agents/skills/，
+ * 所有支持该约定的 Agent 都可见——粗粒度，无法按 Agent 单独关闭，故仅显式使用。
+ */
+export function broadcastSkill(skill: string, off = false): { changed: boolean; message: string } {
+  const src = skillDir(skill);
+  const state = loadState();
+  const target = path.join(agentHome(), '.agents', 'skills', skill);
+
+  if (off) {
+    if (!fs.existsSync(src)) throw new Error(`中央仓库中找不到 skill '${skill}'`);
+    let st: fs.Stats | null = null;
+    try {
+      st = fs.lstatSync(target);
+    } catch {
+      /* 不存在 */
+    }
+    let pointsToStore = false;
+    if (st?.isSymbolicLink()) {
+      try {
+        pointsToStore = fs.realpathSync(target) === fs.realpathSync(src);
+      } catch {
+        pointsToStore = false;
+      }
+    }
+    if (st && (pointsToStore || ledgerHas(state, skill, 'broadcast', target))) {
+      fs.rmSync(target, { recursive: true, force: true });
+      dropLedger(state, skill, 'broadcast');
+      saveState(state);
+      return { changed: true, message: `'${skill}' 已撤下广播（~/.agents/skills）` };
+    }
+    return { changed: false, message: '广播目录中没有该 skill' };
+  }
+
+  if (!fs.existsSync(path.join(src, 'SKILL.md'))) {
+    throw new Error(`中央仓库中找不到 skill '${skill}'（${src}）`);
+  }
+  let st: fs.Stats | null = null;
+  try {
+    st = fs.lstatSync(target);
+  } catch {
+    /* 不存在 */
+  }
+  if (st) {
+    let pointsToStore = false;
+    if (st.isSymbolicLink()) {
+      try {
+        pointsToStore = fs.realpathSync(target) === fs.realpathSync(src);
+      } catch {
+        pointsToStore = false;
+      }
+    }
+    if (pointsToStore || ledgerHas(state, skill, 'broadcast', target)) {
+      return { changed: false, message: `'${skill}' 已在广播中` };
+    }
+    throw new Error(`${target} 已存在且非本工具创建的广播链接，拒绝覆盖`);
+  }
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.symlinkSync(src, target, 'dir');
+  addLedger(state, skill, 'broadcast', target);
+  saveState(state);
+  return { changed: true, message: `'${skill}' 已广播到 ~/.agents/skills（所有支持该约定的 Agent 可见）` };
 }
