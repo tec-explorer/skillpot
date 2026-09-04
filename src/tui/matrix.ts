@@ -26,20 +26,25 @@ export interface Matrix {
   cells: Record<string, Record<string, CellState>>;
 }
 
-/** 从 config + 各 Agent 目录现状推导矩阵（只读，不修改任何状态） */
-export function deriveMatrix(): Matrix {
+/**
+ * 从 config + 各 Agent 目录现状推导矩阵（只读，不修改任何状态）。
+ * agents 可传入预计算的检测结果（GUI 服务端会缓存，避免每次拉状态都 spawn 二进制探测）。
+ */
+export function deriveMatrix(agents?: MatrixAgent[]): Matrix {
   const config = loadConfig();
   const skills = Object.keys(config.skills).sort();
-  const agents: MatrixAgent[] = detectAll().map((r) => ({
-    id: r.id,
-    name: r.name,
-    installed: r.installed,
-    skillsDir: r.skillsDir,
-  }));
+  const list =
+    agents ??
+    detectAll().map((r) => ({
+      id: r.id,
+      name: r.name,
+      installed: r.installed,
+      skillsDir: r.skillsDir,
+    }));
   const cells: Record<string, Record<string, CellState>> = {};
   for (const s of skills) {
     cells[s] = {};
-    for (const a of agents) {
+    for (const a of list) {
       const target = path.join(a.skillsDir, s);
       let actual = false;
       let managed = false;
@@ -57,5 +62,5 @@ export function deriveMatrix(): Matrix {
       };
     }
   }
-  return { skills, agents, cells };
+  return { skills, agents: list, cells };
 }

@@ -12,7 +12,7 @@
 ## 特性
 
 - **一处安装**：中央仓库 `~/.skillpot/skills/` 存唯一真身，自带 checksum 与 lockfile
-- **按 Agent 开关**：`config.yaml` 里的 skill × Agent 矩阵 + symlink 同步引擎；TUI 矩阵可视化切换
+- **按 Agent 开关**：`config.yaml` 里的 skill × Agent 矩阵 + symlink 同步引擎；TUI 矩阵可视化切换，或 `skillpot gui` 浏览器控制台
 - **一处更新**：git 来源 skill 的 `update / --check`，原位替换、无需重连
 - **收编（adopt）**：一键迁移散落在各 Agent 目录里的既有 skill，拷贝 / 移动两种模式
 - **安全**：`lint` 安装前扫描（frontmatter 完整性 + 脚本高危模式）、默认最小暴露、台账化安全卸载
@@ -51,6 +51,7 @@ skillpot init                        # 初始化 ~/.skillpot 并检测本机 Age
 skillpot adopt --dry-run             # 预览：各 Agent 目录下有哪些 skill 可收编
 skillpot adopt --move                # 收编并以移动模式部署（原目录替换为 symlink）
 spot tui                             # 交互式开关矩阵：↑↓←→ 移动，空格切换，a 整行
+skillpot gui                         # 浏览器控制台（本地 Web GUI）：矩阵点击切换 + 体检一键修复
 skillpot add ~/path/to/my-skill      # 安装新 skill（默认不对任何 Agent 开放）
 skillpot enable my-skill --for claude-code,zcode
 skillpot doctor                      # 体检：断链/漂移/同名冲突

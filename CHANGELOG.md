@@ -5,6 +5,17 @@
 
 ## [未发布]
 
+### Added
+- `skillpot gui` 本地 Web 控制台（G1）：零依赖 `node:http` server，仅监听 127.0.0.1；写操作校验启动时生成的随机 token（防 CSRF/DNS rebinding）；自动打开浏览器，`--port`/`--no-open` 可配
+- GUI 开关矩阵视图：skill × Agent 三态着色（开放/漂移/冲突/未开放），点击单元格切换，复用 TUI 的 `toggleCell` 语义
+- GUI 体检视图：问题按 错误/警告 分级列表 + 一键"全部修复"（`fixDoctor`），修复后即时刷新
+- 前端为 Vite + React（`src/gui/`），构建产物 `dist/gui/` 随 npm 包发布；API 核心逻辑抽为纯函数 `handleApiRequest` 并配套 9 项单测
+
+### Changed
+- `deriveMatrix(agents?)` 支持传入预计算的 Agent 检测结果：GUI 服务端缓存 60 秒，避免每次拉状态都逐个 spawn Agent 二进制做 `--version` 探测
+
+## [未发布-0.4.x]
+
 ### Fixed
 - `--version` 与 MCP `serverInfo.version` 此前硬编码 `0.4.0`,现改为运行时从 `package.json` 读取,与包版本单一来源同步(新增 `src/version.ts`)
 

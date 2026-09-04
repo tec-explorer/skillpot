@@ -21,6 +21,7 @@ import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
 import { lintSkill, lintSummary } from './core/lint';
 import { updateSkills } from './core/update';
 import { startMcpServer } from './core/mcp-server';
+import { startGuiServer } from './core/gui-server';
 import { runTui } from './tui/index';
 import { renderTable } from './util/table';
 import { VERSION } from './version';
@@ -442,6 +443,24 @@ program
   .action(
     run((opts: { once?: boolean }) => {
       runTui({ once: opts.once });
+    }),
+  );
+
+program
+  .command('gui')
+  .description('启动本地 Web 控制台（仅监听 127.0.0.1）：开关矩阵、体检与修复')
+  .option('--port <port>', '指定监听端口（默认随机空闲端口）')
+  .option('--no-open', '不自动打开浏览器，仅打印访问地址')
+  .action(
+    run(async (opts: { port?: string; open?: boolean }) => {
+      const port = opts.port ? Number(opts.port) : undefined;
+      if (opts.port && (!Number.isInteger(port) || (port as number) <= 0 || (port as number) > 65535)) {
+        throw new Error(`非法端口：${opts.port}`);
+      }
+      const { url } = await startGuiServer({ port, open: opts.open });
+      console.log(pc.bold(`✓ SkillPot GUI 已启动：${pc.cyan(url)}`));
+      if (opts.open === false) console.log(pc.dim('（未自动打开浏览器，请手动访问上方地址）'));
+      console.log(pc.dim('按 Ctrl+C 退出'));
     }),
   );
 
