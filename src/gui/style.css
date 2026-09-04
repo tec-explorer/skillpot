@@ -144,6 +144,42 @@ body {
   color: var(--ink);
 }
 
+.col-bulk {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 3px;
+}
+
+.bulk-btn {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 5px;
+  font-size: 10.5px;
+  padding: 0 6px;
+  color: var(--dim);
+  cursor: pointer;
+}
+
+.bulk-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.bulk-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.load-more {
+  text-align: center;
+  margin-top: 14px;
+}
+
+.load-more .btn {
+  padding: 8px 24px;
+}
+
 .matrix tr:last-child td {
   border-bottom: none;
 }

@@ -48,8 +48,9 @@ spot tui         # 终端交互版
 ![GUI 开关矩阵](images/gui-matrix.png)
 
 - **点击单元格**即切换:开放 = 在该 Agent 的 skills 目录创建指向中央仓库的 symlink;关闭 = 撤下。切换后台灯提示结果,**Agent 重启示例会话后生效**。
+- **列头「全开 / 全停」**:对该 Agent 下的全部 skill 一键启停(带确认),批量管理不用逐个点击。
 - 顶部**搜索框**按名称过滤;**分段筛选**可只看「已开放」或「异常/漂移」的 skill——skill 一多时快速定位。
-- 列头灰显 `(未检测到)` 表示本机没装该 Agent(仍可开放,但建议先安装)。
+- 列表默认每页 20 条,点**「加载更多」**追加;列头灰显 `(未检测到)` 表示本机没装该 Agent(仍可开放,但建议先安装)。
 - 点击 **skill 名**打开详情。
 
 ### skill 详情
@@ -87,7 +88,7 @@ skillpot adopt             # 拷贝收编,原目录保留
 skillpot adopt --move      # 移动模式:原目录替换为 symlink
 ```
 
-GUI「收编」Tab 自动扫描各已检测 Agent 目录下的真实 skill 目录(symlink 会跳过),**勾选式收编**,支持移动模式与"收编后开放给来源 Agent":
+GUI「收编」Tab 自动扫描各已检测 Agent 目录下的真实 skill 目录(symlink 会跳过),**勾选式收编**,支持按名称/路径过滤、移动模式与"收编后开放给来源 Agent":
 
 ![收编](images/gui-adopt.png)
 
@@ -113,7 +114,7 @@ skillpot source remove <url>
 skillpot market [url] [--refresh]    # 命令行浏览源内 skill
 ```
 
-GUI「市场」Tab 内置 **Anthropic 官方技能库**(`anthropics/skills`),可添加任意自定义 git 源。选中源后列出其中全部 skill(名称/说明/仓库内子目录/已装标记),**一键安装**——安装走与「安装」Tab 相同的流程(lint、默认不开放),之后去矩阵打勾开放。
+GUI「市场」Tab 内置四个技能源——**Anthropic 官方技能库**、**Vercel 官方技能集**、**Superpowers 社区技能集**、**Matt Pocock 技能集**——并可添加任意自定义 git 源。选中源后列出其中全部 skill(名称/说明/仓库内子目录/已装标记),顶部**搜索框**过滤,默认展示 20 条、**「加载更多」**追加,**一键安装**——安装走与「安装」Tab 相同的流程(lint、默认不开放),之后去矩阵打勾开放。
 
 ![市场](images/gui-market.png)
 

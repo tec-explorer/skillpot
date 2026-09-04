@@ -145,6 +145,42 @@ describe('handleApiRequest', () => {
     expect((res.body as { ok: boolean }).ok).toBe(false);
   });
 
+  it('POST /api/bulk 整列启停', async () => {
+    setupSkill();
+    const on = (await handleApiRequest(
+      'POST',
+      '/api/bulk',
+      NO_QUERY,
+      { agent: 'claude-code', enable: true },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(on.status).toBe(200);
+    expect((on.body as { changed: string[] }).changed).toEqual(['demo-skill']);
+    expect(loadConfig().skills['demo-skill'].expose['claude-code']).toBe(true);
+
+    const off = (await handleApiRequest(
+      'POST',
+      '/api/bulk',
+      NO_QUERY,
+      { agent: 'claude-code', enable: false },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(off.status).toBe(200);
+    expect(loadConfig().skills['demo-skill'].expose['claude-code']).toBe(false);
+
+    const bad = (await handleApiRequest(
+      'POST',
+      '/api/bulk',
+      NO_QUERY,
+      { agent: 'claude-code' },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(bad.status).toBe(400);
+  });
+
   it('GET /api/adopt 只列已安装 Agent 的可收编真实目录并标注 inStore', async () => {
     setupAdoptable();
     initStore();

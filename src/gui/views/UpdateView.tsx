@@ -16,6 +16,12 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
   const [results, setResults] = useState<UpdateResult[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+
+  const q = query.trim().toLowerCase();
+  const filtered = skills.filter(
+    (s) => !q || s.name.toLowerCase().includes(q) || s.source.toLowerCase().includes(q),
+  );
 
   const checkAll = async () => {
     if (busy) return;
@@ -78,6 +84,20 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
         git 来源的 skill 可原位更新（symlink 指向不变，无需重连）；本地来源跳过。点击 skill 名查看详情与卸载。
       </p>
 
+      {skills.length > 0 && (
+        <div className="toolbar">
+          <input
+            className="input grow"
+            placeholder="搜索名称 / 来源…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <span className="dim small">
+            {filtered.length}/{skills.length}
+          </span>
+        </div>
+      )}
+
       <table className="matrix update-table">
         <thead>
           <tr>
@@ -88,7 +108,7 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
           </tr>
         </thead>
         <tbody>
-          {skills.map((s) => {
+          {filtered.map((s) => {
             const st = statusOf(s.name);
             const git = isGitSource(s.source);
             return (

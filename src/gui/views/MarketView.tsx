@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { AddResult, MarketSkill, SourceInfo } from '../types';
 import { Toast } from '../App';
@@ -10,6 +10,8 @@ interface Props {
   toast: (text: string, bad?: boolean) => void;
 }
 
+const PAGE_SIZE = 20;
+
 export function MarketView({ rev, reload, toast }: Props) {
   const [sources, setSources] = useState<SourceInfo[] | null>(null);
   const [selected, setSelected] = useState<string>('');
@@ -20,6 +22,8 @@ export function MarketView({ rev, reload, toast }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [newName, setNewName] = useState('');
+  const [query, setQuery] = useState('');
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
   const loadSources = useCallback(async (): Promise<SourceInfo[]> => {
     const r = await api<{ sources: SourceInfo[] }>('/api/market/sources');
@@ -31,6 +35,7 @@ export function MarketView({ rev, reload, toast }: Props) {
     async (url: string, refresh = false) => {
       setScanning(true);
       setSkills(null);
+      setVisible(PAGE_SIZE);
       try {
         const r = await api<{ skills: MarketSkill[]; cloned: boolean }>(
           `/api/market/scan?url=${encodeURIComponent(url)}${refresh ? '&refresh=1' : ''}`,
@@ -117,6 +122,22 @@ export function MarketView({ rev, reload, toast }: Props) {
     }
   };
 
+  const filteredSkills = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return skills ?? [];
+    return (skills ?? []).filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        s.subdir.toLowerCase().includes(q),
+    );
+  }, [skills, query]);
+
+  const visibleSkills = useMemo(
+    () => filteredSkills.slice(0, visible),
+    [filteredSkills, visible],
+  );
+
   if (!sources) return <div className="loading">加载源…</div>;
   const current = sources.find((s) => s.url === selected);
 
@@ -176,47 +197,70 @@ export function MarketView({ rev, reload, toast }: Props) {
         </button>
       </div>
 
-      {!skills ? (
-        <div className="loading">扫描中…{clonedNote}</div>
-      ) : skills.length === 0 ? (
+      <div className="toolbar">
+        <input
+          className="input grow"
+          placeholder="搜索名称 / 说明 / 子目录…"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setVisible(PAGE_SIZE);
+          }}
+        />
+        <span className="dim small">
+          {scanning
+            ? '扫描中…'
+            : `${filteredSkills.length}/${(skills ?? []).length} · ${clonedNote}`}
+        </span>
+      </div>
+
+      {!skills ? null : skills.length === 0 ? (
         <p className="dim">该仓库中没有找到 SKILL.md 目录。</p>
       ) : (
         <>
-          <p className="dim small">
-            共 {skills.length} 个 skill · {clonedNote}
-          </p>
-          <table className="matrix update-table">
-            <thead>
-              <tr>
-                <th className="skill-col">Skill</th>
-                <th>说明</th>
-                <th>子目录</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {skills.map((s) => (
-                <tr key={s.subdir}>
-                  <td className="skill-name">{s.name}</td>
-                  <td className="dim small">{s.description.slice(0, 90)}</td>
-                  <td className="dim small mono">{s.subdir}</td>
-                  <td>
-                    {s.installed ? (
-                      <span className="dim small">已安装</span>
-                    ) : (
-                      <button
-                        className="btn small-btn"
-                        disabled={installing !== null}
-                        onClick={() => install(s)}
-                      >
-                        {installing === s.subdir ? '安装中…' : '安装'}
-                      </button>
-                    )}
-                  </td>
+          {visibleSkills.length === 0 ? (
+            <p className="dim">没有匹配的 skill（换个关键词试试）。</p>
+          ) : (
+            <table className="matrix update-table">
+              <thead>
+                <tr>
+                  <th className="skill-col">Skill</th>
+                  <th>说明</th>
+                  <th>子目录</th>
+                  <th>操作</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleSkills.map((s) => (
+                  <tr key={s.subdir}>
+                    <td className="skill-name">{s.name}</td>
+                    <td className="dim small">{s.description.slice(0, 90)}</td>
+                    <td className="dim small mono">{s.subdir}</td>
+                    <td>
+                      {s.installed ? (
+                        <span className="dim small">已安装</span>
+                      ) : (
+                        <button
+                          className="btn small-btn"
+                          disabled={installing !== null}
+                          onClick={() => install(s)}
+                        >
+                          {installing === s.subdir ? '安装中…' : '安装'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {filteredSkills.length > visible && (
+            <div className="load-more">
+              <button className="btn" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
+                加载更多（已显示 {visible}/{filteredSkills.length}）
+              </button>
+            </div>
+          )}
           <p className="legend">
             安装 = 拷贝进中央仓库，默认不对任何 Agent 开放（去「开关矩阵」打勾或安装时先收着）。
             官方源中 docx/pdf/pptx/xlsx 为 source-available 许可，使用前请阅原仓库说明。

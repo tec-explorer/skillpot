@@ -51,19 +51,20 @@ beforeEach(() => {
 describe('source 管理', () => {
   it('内置官方源始终在列', () => {
     const sources = listSources();
-    expect(sources.filter((s) => s.builtin)).toHaveLength(1);
+    expect(sources.filter((s) => s.builtin)).toHaveLength(4);
     expect(sources[0].url).toBe(OFFICIAL_URL);
   });
 
   it('addSource 校验 git 地址、去重;removeSource 移除并保护内置源', () => {
     const s = addSource('file:///tmp/src.git', 'My Source');
     expect(s).toMatchObject({ name: 'My Source', url: 'file:///tmp/src.git', builtin: false });
-    expect(listSources()).toHaveLength(2);
+    expect(listSources()).toHaveLength(5);
     expect(() => addSource('file:///tmp/src.git')).toThrow(/已存在/);
     expect(() => addSource('not-a-git')).toThrow(/不是合法的 git 地址/);
+    expect(() => addSource(OFFICIAL_URL)).toThrow(/无需添加/);
     expect(() => removeSource(OFFICIAL_URL)).toThrow(/内置源不可移除/);
     removeSource('file:///tmp/src.git');
-    expect(listSources()).toHaveLength(1);
+    expect(listSources()).toHaveLength(4);
     expect(() => removeSource('file:///tmp/src.git')).toThrow(/源不存在/);
   });
 });

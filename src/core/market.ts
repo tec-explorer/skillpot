@@ -13,11 +13,14 @@ const execFileP = promisify(execFile);
 
 /** 内置官方源：Anthropic 官方技能库（skills/<name> 嵌套布局） */
 export const OFFICIAL_URL = 'https://github.com/anthropics/skills.git';
-const OFFICIAL: SourceInfo = {
-  name: 'Anthropic 官方技能库',
-  url: OFFICIAL_URL,
-  builtin: true,
-};
+
+/** 内置源（不落盘、不可移除）：官方 + 社区权威技能集 */
+export const BUILTIN_SOURCES: SourceInfo[] = [
+  { name: 'Anthropic 官方技能库', url: OFFICIAL_URL, builtin: true },
+  { name: 'Vercel 官方技能集', url: 'https://github.com/vercel-labs/agent-skills.git', builtin: true },
+  { name: 'Superpowers 社区技能集', url: 'https://github.com/obra/superpowers.git', builtin: true },
+  { name: 'Matt Pocock 技能集', url: 'https://github.com/mattpocock/skills.git', builtin: true },
+];
 
 export interface SourceInfo {
   name: string;
@@ -25,10 +28,10 @@ export interface SourceInfo {
   builtin: boolean;
 }
 
-/** 源列表 = 内置官方源 + config.yaml sources 段 */
+/** 源列表 = 内置源 + config.yaml sources 段 */
 export function listSources(): SourceInfo[] {
   const config = loadConfig();
-  return [OFFICIAL, ...(config.sources ?? []).map((s) => ({ name: s.name ?? urlLabel(s.url), url: s.url, builtin: false }))];
+  return [...BUILTIN_SOURCES, ...(config.sources ?? []).map((s) => ({ name: s.name ?? urlLabel(s.url), url: s.url, builtin: false }))];
 }
 
 function urlLabel(url: string): string {
@@ -38,7 +41,7 @@ function urlLabel(url: string): string {
 
 export function addSource(url: string, name?: string): SourceInfo {
   if (!isGitSource(url)) throw new Error(`不是合法的 git 地址：${url}`);
-  if (url === OFFICIAL_URL) throw new Error('官方源已内置，无需添加');
+  if (BUILTIN_SOURCES.some((s) => s.url === url)) throw new Error('内置源已存在，无需添加');
   const config = loadConfig();
   config.sources = config.sources ?? [];
   if (config.sources.some((s) => s.url === url)) throw new Error(`源已存在：${url}`);
@@ -53,7 +56,7 @@ export function addSource(url: string, name?: string): SourceInfo {
 }
 
 export function removeSource(url: string): void {
-  if (url === OFFICIAL_URL) throw new Error('内置源不可移除');
+  if (BUILTIN_SOURCES.some((s) => s.url === url)) throw new Error('内置源不可移除');
   const config = loadConfig();
   const before = (config.sources ?? []).length;
   config.sources = (config.sources ?? []).filter((s) => s.url !== url);

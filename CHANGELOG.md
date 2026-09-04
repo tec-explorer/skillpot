@@ -3,13 +3,16 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.7.0] - 2026-09-04
 
 ### Added
-- `docs/guide.md` 功能指南:TUI/GUI 全功能截图与分步说明(开关矩阵、详情、体检、收编、安装、市场、维护、TUI、MCP),README 挂载主视觉截图与指南入口
+- **市场**:内置源扩至四个——Anthropic 官方、Vercel 官方（`vercel-labs/agent-skills`）、Superpowers 社区技能集（`obra/superpowers`）、Matt Pocock 技能集（`mattpocock/skills`）；新增过滤框（名称/说明/子目录）与「加载更多」分页（默认 20 条）
+- **开关矩阵**:每个 Agent 列头新增「全开/全停」整列批量启停（带确认，走新增的 `POST /api/bulk`）；skill 列表默认 20 条 + 「加载更多」分页，与搜索/状态筛选联动
+- **收编 / 维护**页新增过滤框（名称/路径/来源），批量数据处理更顺手
+- `docs/guide.md` 功能指南:TUI/GUI 全功能截图与分步说明,README 挂载主视觉截图与指南入口
 
 ### Changed
-- README 对照 0.6.0 全面校准:命令表补 gui/market/source、Agent 表扩至七家、快速开始补市场、FAQ 重写(skills.sh 关系、全局/本地安装排查)、安全模型补控制台 token 说明、docs 索引收录功能指南与 9 月 4 日三份执行报告
+- README 对照 0.6.0 全面校准:命令表补 gui/market/source、Agent 表扩至七家、快速开始补市场、FAQ 重写(skills.sh 关系、全局/本地安装排查)、安全模型补控制台 token 说明、docs 索引收录功能指南与执行报告
 
 ## [0.6.0] - 2026-09-04
 

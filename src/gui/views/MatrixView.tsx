@@ -50,6 +50,7 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [visible, setVisible] = useState(20);
   const { matrix } = state;
 
   const filteredSkills = useMemo(() => {
@@ -66,6 +67,33 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
       );
     });
   }, [matrix, query, statusFilter]);
+
+  const visibleSkills = useMemo(
+    () => filteredSkills.slice(0, visible),
+    [filteredSkills, visible],
+  );
+
+  const bulk = async (agentId: string, enable: boolean) => {
+    if (busy) return;
+    const verb = enable ? '开放' : '关闭';
+    if (!window.confirm(`确认对该 Agent ${verb}全部 skill？`)) return;
+    setBusy(`bulk:${agentId}`);
+    try {
+      const r = await api<{ changed: string[]; skipped: { skill: string; reason: string }[] }>(
+        '/api/bulk',
+        { method: 'POST', body: { agent: agentId, enable } },
+      );
+      toast(
+        `已${verb} ${r.changed.length} 个 skill${r.skipped.length ? `，跳过 ${r.skipped.length} 个` : ''}`,
+        r.changed.length === 0,
+      );
+      await reload();
+    } catch (e) {
+      toast((e as Error).message, true);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const toggle = async (skill: string, agentId: string) => {
     const key = `${skill}@${agentId}`;
@@ -104,14 +132,20 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           className="input grow"
           placeholder="搜索 skill 名…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setVisible(20);
+          }}
         />
         <div className="segment">
           {FILTERS.map((f) => (
             <button
               key={f.id}
               className={statusFilter === f.id ? 'seg-btn active' : 'seg-btn'}
-              onClick={() => setStatusFilter(f.id)}
+              onClick={() => {
+                setStatusFilter(f.id);
+                setVisible(20);
+              }}
             >
               {f.label}
             </button>
@@ -127,14 +161,32 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
             <th className="skill-col">Skill</th>
             {matrix.agents.map((a) => (
               <th key={a.id} className={a.installed ? '' : 'agent-off'} title={a.skillsDir}>
-                {a.name}
+                <div>{a.name}</div>
                 {!a.installed && <span className="dim">（未检测到）</span>}
+                <span className="col-bulk">
+                  <button
+                    className="bulk-btn"
+                    title={`对 ${a.name} 开放全部 skill`}
+                    disabled={busy !== null}
+                    onClick={() => bulk(a.id, true)}
+                  >
+                    全开
+                  </button>
+                  <button
+                    className="bulk-btn"
+                    title={`对 ${a.name} 关闭全部 skill`}
+                    disabled={busy !== null}
+                    onClick={() => bulk(a.id, false)}
+                  >
+                    全停
+                  </button>
+                </span>
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {filteredSkills.map((s) => (
+          {visibleSkills.map((s) => (
             <tr key={s}>
               <td
                 className="skill-name link"
@@ -161,6 +213,13 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           ))}
         </tbody>
       </table>
+      {filteredSkills.length > visible && (
+        <div className="load-more">
+          <button className="btn" onClick={() => setVisible((v) => v + 20)}>
+            加载更多（已显示 {visible}/{filteredSkills.length}）
+          </button>
+        </div>
+      )}
       {filteredSkills.length === 0 && (
         <p className="dim" style={{ textAlign: 'center', marginTop: 16 }}>
           没有匹配的 skill（换个关键词或切回「全部」）。

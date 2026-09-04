@@ -8,6 +8,7 @@ import { VERSION } from '../version';
 import { MatrixAgent, deriveMatrix } from '../tui/matrix';
 import { toggleCell } from '../tui/cells';
 import { fixDoctor, runDoctor } from './doctor';
+import { disableSkill, enableSkill } from './sync';
 import { lintSkill } from './lint';
 import { storeSkillNames } from './store';
 import { loadConfig } from './config';
@@ -182,6 +183,26 @@ export async function handleApiRequest(
       }
       uninstallSkill(b.skill);
       return { status: 200, body: { ok: true, message: `已卸载 ${b.skill}` } };
+    }
+    if (method === 'POST' && pathname === '/api/bulk') {
+      // 整列批量启停：对该 Agent 下的全部 skill 逐个 enable/disable
+      const b = (body ?? {}) as { agent?: unknown; enable?: unknown };
+      if (typeof b.agent !== 'string' || typeof b.enable !== 'boolean') {
+        return { status: 400, body: { error: '需要 agent 字符串与 enable 布尔字段' } };
+      }
+      const names = Object.keys(loadConfig().skills).sort();
+      const changed: string[] = [];
+      const skipped: { skill: string; reason: string }[] = [];
+      for (const n of names) {
+        try {
+          const r = b.enable ? enableSkill(n, [b.agent]) : disableSkill(n, [b.agent]);
+          if (r.linked.length) changed.push(n);
+          else if (r.skipped.length) skipped.push({ skill: n, reason: r.skipped[0].reason });
+        } catch (e) {
+          skipped.push({ skill: n, reason: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      return { status: 200, body: { changed, skipped } };
     }
     if (method === 'GET' && pathname === '/api/market/sources') {
       return { status: 200, body: { sources: listSources() } };

@@ -24,6 +24,7 @@ export function AdoptView({ rev, reload, toast }: Props) {
   const [enableAll, setEnableAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<AdoptReport | null>(null);
+  const [query, setQuery] = useState('');
 
   const keyOf = (agent: string, name: string) => `${agent}\u0000${name}`;
 
@@ -46,6 +47,18 @@ export function AdoptView({ rev, reload, toast }: Props) {
   useEffect(() => {
     scan();
   }, [scan, rev]);
+
+  const q = query.trim().toLowerCase();
+  const visibleAgents =
+    agents === null
+      ? null
+      : agents.map((a) => ({
+          ...a,
+          skills: a.skills.filter(
+            (s) => !q || s.name.toLowerCase().includes(q) || s.path.toLowerCase().includes(q),
+          ),
+        }));
+  const visibleTotal = (visibleAgents ?? []).reduce((n, a) => n + a.skills.length, 0);
 
   const toggle = (k: string) => {
     setChecked((p) => {
@@ -104,6 +117,19 @@ export function AdoptView({ rev, reload, toast }: Props) {
           {busy ? '收编中…' : `收编勾选项（${checked.size}）`}
         </button>
       </div>
+      {total > 0 && (
+        <div className="toolbar">
+          <input
+            className="input grow"
+            placeholder="搜索名称 / 路径…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <span className="dim small">
+            {visibleTotal}/{total}
+          </span>
+        </div>
+      )}
       <div className="form-row options">
         <label className="pick">
           <input type="checkbox" checked={move} onChange={(e) => setMove(e.target.checked)} />
@@ -124,7 +150,7 @@ export function AdoptView({ rev, reload, toast }: Props) {
           各已安装 Agent 的 skills 目录下没有可收编的真实目录（受管 symlink 与外部链接会自动跳过）。
         </p>
       ) : (
-        agents
+        visibleAgents!
           .filter((a) => a.skills.length > 0)
           .map((a) => (
             <div key={a.id} className="adopt-group">
