@@ -289,6 +289,5 @@ npm 查重：`skillpot` 可用；`skillhub`（v0.4.1，同类产品）与 `skill
 - [2026-09-04 GUI G1 执行报告](../reports/2026-09-04-gui-g1-execution.md)
 - [2026-09-04 GUI G2/G3/G4 执行报告](../reports/2026-09-04-gui-g2-g3-g4-execution.md)
 - [2026-09-04 跟进批次(市场/适配器/矩阵优化)执行报告](../reports/2026-09-04-followups-market-execution.md)
-- [2026-09-04 主线A 安全纵深执行报告(随 0.8.0 发布)](../reports/2026-09-04-followups-market-execution.md)
-- [2026-09-04 主线B 团队对齐执行报告](../reports/2026-09-04-team-sync-execution.md)（最新）
+- [2026-09-04 主线B 团队对齐执行报告](../reports/2026-09-04-team-sync-execution.md)（最新；主线A 安全纵深随 0.8.0 发布,详见 CHANGELOG）
 
