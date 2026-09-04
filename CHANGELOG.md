@@ -3,6 +3,11 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### Added
+- `docs/guide.md` 功能指南:TUI/GUI 全功能截图与分步说明(开关矩阵、详情、体检、收编、安装、市场、维护、TUI、MCP),README 挂载主视觉截图与指南入口
+
 ## [0.6.0] - 2026-09-04
 
 ### Added

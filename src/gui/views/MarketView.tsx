@@ -4,11 +4,13 @@ import { AddResult, MarketSkill, SourceInfo } from '../types';
 import { Toast } from '../App';
 
 interface Props {
+  /** SSE 变更序号:变化时重新扫描(命中本地克隆缓存,秒回) */
+  rev: number;
   reload: () => Promise<void>;
   toast: (text: string, bad?: boolean) => void;
 }
 
-export function MarketView({ reload, toast }: Props) {
+export function MarketView({ rev, reload, toast }: Props) {
   const [sources, setSources] = useState<SourceInfo[] | null>(null);
   const [selected, setSelected] = useState<string>('');
   const [skills, setSkills] = useState<MarketSkill[] | null>(null);
@@ -58,7 +60,7 @@ export function MarketView({ reload, toast }: Props) {
 
   useEffect(() => {
     if (selected) scan(selected);
-  }, [selected, scan]);
+  }, [selected, scan, rev]);
 
   const pickSource = (url: string) => {
     if (url !== selected) setSelected(url);

@@ -2,17 +2,22 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-brightgreen.svg)](package.json)
-[![CI](https://github.com/zhangmingyong/skillpot/actions/workflows/ci.yml/badge.svg)](https://github.com/zhangmingyong/skillpot/actions)
+[![CI](https://github.com/tec-explorer/skillpot/actions/workflows/ci.yml/badge.svg)](https://github.com/tec-explorer/skillpot/actions)
 
 **跨编程 Agent 的 Skill 管理器 —— 一处安装，按 Agent 开关，一处更新。**
 *Cross-agent skill manager for coding agents: install once, expose per agent, update once.*
 
-> 编程 Agent（Claude Code、ZCode、Codex、OpenCode、Gemini CLI…）已收敛到同一套 `SKILL.md` 开放标准，但发现路径各自为政：装进 `~/.claude/skills` 就只对 Claude Code 生效。SkillPot 把 skill 收进一个中央仓库，按 Agent 粒度开关暴露，并提供冲突体检与安全扫描。
+> 编程 Agent(Claude Code、ZCode、Codex、OpenCode、Gemini CLI、DeepSeek CLI、Cursor…)已收敛到同一套 `SKILL.md` 开放标准,但发现路径各自为政:装进 `~/.claude/skills` 就只对 Claude Code 生效。SkillPot 把 skill 收进一个中央仓库,按 Agent 粒度开关暴露,并提供冲突体检与安全扫描。
+
+![GUI 开关矩阵](docs/images/gui-matrix.png)
+
+📖 **[功能指南(含 TUI/GUI 全功能截图与说明)](docs/guide.md)**
 
 ## 特性
 
 - **一处安装**：中央仓库 `~/.skillpot/skills/` 存唯一真身，自带 checksum 与 lockfile
 - **按 Agent 开关**：`config.yaml` 里的 skill × Agent 矩阵 + symlink 同步引擎；TUI 矩阵可视化切换，或 `skillpot gui` 浏览器控制台
+- **市场**：内置 Anthropic 官方技能库，支持自定义 git 技能源，浏览并一键安装
 - **一处更新**：git 来源 skill 的 `update / --check`，原位替换、无需重连
 - **收编（adopt）**：一键迁移散落在各 Agent 目录里的既有 skill，拷贝 / 移动两种模式
 - **安全**：`lint` 安装前扫描（frontmatter 完整性 + 脚本高危模式）、默认最小暴露、台账化安全卸载

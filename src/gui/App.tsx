@@ -104,7 +104,7 @@ export function App() {
         ) : tab === 'add' ? (
           <AddView agents={state.matrix.agents} reload={reload} toast={toast} />
         ) : tab === 'market' ? (
-          <MarketView reload={reload} toast={toast} />
+          <MarketView rev={rev} reload={reload} toast={toast} />
         ) : (
           <UpdateView
             skills={Object.entries(state.skills)
