@@ -57,16 +57,17 @@ export const AGENTS: AgentAdapter[] = [
     binaries: ['dsh'],
     fingerprints: (home) => [path.join(home, '.dsh')],
     skillsDir: (home) => path.join(home, '.dsh', 'skills'),
-    verified: '目录实测：~/.dsh/skills 为 SKILL.md 目录约定；symlink 发现任待 dsh 实机确认',
+    verified:
+      '目录约定同 Claude（~/.dsh/skills + SKILL.md）；目录内已存在用户手工创建并日常使用的 symlink，间接佐证 symlink 可被发现；dsh CLI 本机损坏（@deepseek-ai/dsh 模块缺失），待重装后最终确认',
   },
   {
     id: 'cursor',
     name: 'Cursor',
     binaries: ['cursor'],
     fingerprints: (home) => [path.join(home, '.cursor')],
-    skillsDir: (home) => path.join(home, '.cursor', 'skills-cursor'),
+    skillsDir: (home) => path.join(home, '.cursor', 'skills'),
     verified:
-      '目录实测：~/.cursor/skills-cursor 为 Cursor Agent Skills（官方 create-skill 技能自述）；目录名非通用约定，symlink 发现任待实机确认',
+      '官方 create-skill 技能明确：个人技能目录为 ~/.cursor/skills/（项目为 .cursor/skills/）；symlink 发现任待实机确认',
   },
 ];
 
