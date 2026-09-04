@@ -7,16 +7,19 @@ if (t) {
   history.replaceState(null, '', location.pathname);
 }
 
+export function getToken(): string {
+  return sessionStorage.getItem('skillpot-token') ?? '';
+}
+
 export async function api<T = unknown>(
   path: string,
   opts: { method?: string; body?: unknown } = {},
 ): Promise<T> {
-  const token = sessionStorage.getItem('skillpot-token') ?? '';
   const res = await fetch(path, {
     method: opts.method ?? 'GET',
     headers: {
       'content-type': 'application/json',
-      ...(token ? { 'x-skillpot-token': token } : {}),
+      ...(getToken() ? { 'x-skillpot-token': getToken() } : {}),
     },
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
   });

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api } from './api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, getToken } from './api';
 import { StateResp } from './types';
 import { MatrixView } from './views/MatrixView';
 import { DoctorView } from './views/DoctorView';
@@ -29,6 +29,9 @@ export function App() {
   const [state, setState] = useState<StateResp | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [detailSkill, setDetailSkill] = useState<string | null>(null);
+  // SSE 变更序号：任一写操作(含其他标签页)成功后 +1,自取数据的视图以 key 重挂载重新拉取
+  const [rev, setRev] = useState(0);
+  const debounceRef = useRef<number | undefined>(undefined);
 
   const toast = useCallback((text: string, bad = false) => {
     const id = Date.now() + Math.random();
@@ -44,6 +47,20 @@ export function App() {
 
   useEffect(() => {
     reload();
+  }, [reload]);
+
+  // 订阅服务端变更事件：150ms 去抖后刷新,保证多标签页/外部 CLI 改动后界面自动同步
+  useEffect(() => {
+    const t = getToken();
+    const es = new EventSource('/api/events' + (t ? `?token=${encodeURIComponent(t)}` : ''));
+    es.onmessage = () => {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = window.setTimeout(() => {
+        setRev((r) => r + 1);
+        reload();
+      }, 150);
+    };
+    return () => es.close();
   }, [reload]);
 
   const skillCount = state ? Object.keys(state.skills).length : 0;
@@ -79,9 +96,9 @@ export function App() {
             onOpenDetail={setDetailSkill}
           />
         ) : tab === 'doctor' ? (
-          <DoctorView toast={toast} />
+          <DoctorView rev={rev} toast={toast} />
         ) : tab === 'adopt' ? (
-          <AdoptView reload={reload} toast={toast} />
+          <AdoptView rev={rev} reload={reload} toast={toast} />
         ) : tab === 'add' ? (
           <AddView agents={state.matrix.agents} reload={reload} toast={toast} />
         ) : (

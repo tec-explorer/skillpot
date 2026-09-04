@@ -3,21 +3,29 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [0.5.0] - 2026-09-04
 
 ### Added
-- `skillpot gui` 本地 Web 控制台（G1）：零依赖 `node:http` server，仅监听 127.0.0.1；写操作校验启动时生成的随机 token（防 CSRF/DNS rebinding）；自动打开浏览器，`--port`/`--no-open` 可配
-- GUI 开关矩阵视图：skill × Agent 三态着色（开放/漂移/冲突/未开放），点击单元格切换，复用 TUI 的 `toggleCell` 语义
-- GUI 体检视图：问题按 错误/警告 分级列表 + 一键"全部修复"（`fixDoctor`），修复后即时刷新
-- 前端为 Vite + React（`src/gui/`），构建产物 `dist/gui/` 随 npm 包发布；API 核心逻辑抽为纯函数 `handleApiRequest` 并配套 9 项单测
+- `skillpot gui` 本地 Web 控制台：零依赖 `node:http` server（默认仅监听 127.0.0.1，`--host` 可开放局域网并强制全请求 token）；写操作校验随机 token（防 CSRF/DNS rebinding）；自动打开浏览器，`--port`/`--no-open` 可配
+- GUI 开关矩阵视图：skill × Agent 三态着色（开放/漂移/冲突/未开放），点击单元格切换，复用 TUI 的 `toggleCell` 语义；点击 skill 名打开详情弹层（描述、文件树、SKILL.md 预览、lint、卸载）
+- GUI 体检视图：问题按 错误/警告 分级列表 + 一键「全部修复」（`fixDoctor`）
+- GUI 收编视图：扫描各 Agent 可收编目录，勾选式收编（`adoptSkills` 新增 `only` 过滤）、move 模式、收编后开放
+- GUI 安装视图：本地目录 / git URL（`#subdir`）表单，安装即 lint、可选开放给指定 Agent（新增 `core/add.ts`，CLI `add` 复用同一流程）
+- GUI 维护视图：git 来源 skill 检查/应用更新，本地来源跳过
+- SSE 变更广播（`/api/events`）：任一写操作成功后通知浏览器自动刷新，多标签页保持同步
+- 前端为 Vite + React（`src/gui/`），构建产物 `dist/gui/` 随 npm 包发布；API 核心抽为纯函数 `handleApiRequest` 并配套单测
 
 ### Changed
+- `installFromGit` / `updateSkills` 改为异步（execFile promise）：GUI 服务端执行 git 操作时不再阻塞事件循环
 - `deriveMatrix(agents?)` 支持传入预计算的 Agent 检测结果：GUI 服务端缓存 60 秒，避免每次拉状态都逐个 spawn Agent 二进制做 `--version` 探测
-
-## [未发布-0.4.x]
+- `uninstallSkill` 抽为 core 函数（`core/uninstall.ts`），CLI `remove` 复用
 
 ### Fixed
-- `--version` 与 MCP `serverInfo.version` 此前硬编码 `0.4.0`,现改为运行时从 `package.json` 读取,与包版本单一来源同步(新增 `src/version.ts`)
+- `--version` 与 MCP `serverInfo.version` 此前硬编码 `0.4.0`，现改为运行时从 `package.json` 读取，与包版本单一来源同步（新增 `src/version.ts`；该修复已随 0.4.2 发布）
+
+## [0.4.2] - 2026-09-04
+
+- 版本号运行时读取修复（见 0.5.0 Fixed；随 0.4.2 首次发布）
 
 ## [0.4.1] - 2026-09-04
 

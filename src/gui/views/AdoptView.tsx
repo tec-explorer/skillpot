@@ -4,6 +4,8 @@ import { AdoptAgent, AdoptReport, ADOPT_STATUS_LABEL } from '../types';
 import { Toast } from '../App';
 
 interface Props {
+  /** SSE 变更序号:变化时重新扫描(保留勾选等本地状态,不重挂载) */
+  rev: number;
   reload: () => Promise<void>;
   toast: (text: string, bad?: boolean) => void;
 }
@@ -15,7 +17,7 @@ const STATUS_SUMMARY: { key: keyof AdoptReport; label: string }[] = [
   { key: 'skipped', label: '其他跳过' },
 ];
 
-export function AdoptView({ reload, toast }: Props) {
+export function AdoptView({ rev, reload, toast }: Props) {
   const [agents, setAgents] = useState<AdoptAgent[] | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [move, setMove] = useState(true);
@@ -43,7 +45,7 @@ export function AdoptView({ reload, toast }: Props) {
 
   useEffect(() => {
     scan();
-  }, [scan]);
+  }, [scan, rev]);
 
   const toggle = (k: string) => {
     setChecked((p) => {

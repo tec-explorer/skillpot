@@ -326,6 +326,52 @@ describe('handleApiRequest', () => {
     const { results } = res.body as { results: { skill: string; status: string }[] };
     expect(results).toEqual([{ skill: 'demo-skill', status: 'local', detail: expect.any(String) }]);
   });
+
+  it('SSE /api/events:写操作成功后广播 change 事件', async () => {
+    setupSkill();
+    const srv = await startGuiServer({ open: false });
+    try {
+      const origin = new URL(srv.url).origin;
+      const ctrl = new AbortController();
+      const stream = await fetch(origin + '/api/events', { signal: ctrl.signal });
+      expect(stream.status).toBe(200);
+      const reader = stream.body!.getReader();
+
+      await fetch(origin + '/api/toggle', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-skillpot-token': srv.token },
+        body: JSON.stringify({ skill: 'demo-skill', agent: 'claude-code' }),
+      });
+
+      // 首读是 ': connected' 注释行,循环读到 change 事件
+      const decode = new TextDecoder();
+      let chunk = '';
+      for (let i = 0; i < 5; i++) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        chunk += decode.decode(value);
+        if (chunk.includes('"type":"change"')) break;
+      }
+      expect(chunk).toContain('"type":"change"');
+      ctrl.abort();
+    } finally {
+      await srv.close();
+    }
+  });
+
+  it('非回环 host:GET 也要求 token', async () => {
+    setupSkill();
+    const srv = await startGuiServer({ open: false, host: '0.0.0.0' });
+    try {
+      const origin = `http://127.0.0.1:${srv.port}`;
+      const denied = await fetch(origin + '/api/state');
+      expect(denied.status).toBe(403);
+      const allowed = await fetch(origin + '/api/state?token=' + srv.token);
+      expect(allowed.status).toBe(200);
+    } finally {
+      await srv.close();
+    }
+  });
 });
 
 describe('startGuiServer', () => {

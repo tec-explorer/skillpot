@@ -34,8 +34,8 @@ function makeRepo(): string {
   return repo;
 }
 
-function installFromRepo(repo: string): void {
-  const res = installFromGit(repo, 'git-skill');
+async function installFromRepo(repo: string): Promise<void> {
+  const res = await installFromGit(repo, 'git-skill');
   const config = loadConfig();
   config.skills['git-skill'] = {
     source: `git:${repo}`,
@@ -47,36 +47,36 @@ function installFromRepo(repo: string): void {
 }
 
 describe('update', () => {
-  it('无变化时 up-to-date', () => {
+  it('无变化时 up-to-date', async () => {
     const repo = makeRepo();
-    installFromRepo(repo);
-    const results = updateSkills('git-skill');
+    await installFromRepo(repo);
+    const results = await updateSkills('git-skill');
     expect(results).toEqual([{ skill: 'git-skill', status: 'up-to-date' }]);
   });
 
-  it('远端变化后 updated 并替换内容、刷新 checksum 与 lockfile', () => {
+  it('远端变化后 updated 并替换内容、刷新 checksum 与 lockfile', async () => {
     const repo = makeRepo();
-    installFromRepo(repo);
+    await installFromRepo(repo);
     commitFile(repo, 'SKILL.md', '---\nname: git-skill\ndescription: Git-sourced skill for update tests. Version two here.\n---\n# v2\n', 'v2');
 
-    const results = updateSkills('git-skill');
+    const results = await updateSkills('git-skill');
     expect(results[0].status).toBe('updated');
     expect(fs.readFileSync(path.join(skillDir('git-skill'), 'SKILL.md'), 'utf8')).toContain('# v2');
     expect(loadConfig().skills['git-skill'].checksum).toMatch(/^sha256:/);
     expect(fs.existsSync(lockPath())).toBe(true);
   });
 
-  it('--check 只报告 outdated 不改动', () => {
+  it('--check 只报告 outdated 不改动', async () => {
     const repo = makeRepo();
-    installFromRepo(repo);
+    await installFromRepo(repo);
     commitFile(repo, 'SKILL.md', '---\nname: git-skill\ndescription: Git-sourced skill for update tests. Version two here.\n---\n# v2\n', 'v2');
     const before = fs.readFileSync(path.join(skillDir('git-skill'), 'SKILL.md'), 'utf8');
-    const results = updateSkills('git-skill', { check: true });
+    const results = await updateSkills('git-skill', { check: true });
     expect(results[0].status).toBe('outdated');
     expect(fs.readFileSync(path.join(skillDir('git-skill'), 'SKILL.md'), 'utf8')).toBe(before);
   });
 
-  it('local 来源报告为 local', () => {
+  it('local 来源报告为 local', async () => {
     const config = loadConfig();
     config.skills['loc'] = {
       source: 'local:/somewhere',
@@ -85,7 +85,7 @@ describe('update', () => {
       expose: {},
     };
     saveConfig(config);
-    expect(updateSkills('loc')).toEqual([
+    expect(await updateSkills('loc')).toEqual([
       { skill: 'loc', status: 'local', detail: 'local:/somewhere' },
     ]);
   });

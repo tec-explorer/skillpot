@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { skillDir } from '../paths';
 import { loadConfig, saveConfig } from './config';
 import { dirChecksum } from './store';
+
+const execFileP = promisify(execFile);
 
 export type UpdateStatus = 'up-to-date' | 'outdated' | 'updated' | 'local' | 'error';
 
@@ -18,12 +21,12 @@ function parseGitSource(source: string): string | null {
   return source.startsWith('git:') ? source.slice(4) : null;
 }
 
-/** 浅克隆远端并计算（可选子目录的）内容摘要；调用方负责清理 tmp */
-function fetchRemote(repoSpec: string): { checksum: string; cloneDir: string; sub?: string } {
+/** 浅克隆远端并计算（可选子目录的）内容摘要；调用方负责清理 tmp。异步：GUI 服务端调用时不阻塞事件循环 */
+async function fetchRemote(repoSpec: string): Promise<{ checksum: string; cloneDir: string; sub?: string }> {
   const [url, sub] = repoSpec.split('#');
   const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpot-update-'));
   try {
-    execFileSync('git', ['clone', '--depth', '1', url, cloneDir], { stdio: 'pipe' });
+    await execFileP('git', ['clone', '--depth', '1', url, cloneDir]);
     const contentDir = sub ? path.join(cloneDir, sub) : cloneDir;
     if (!fs.existsSync(path.join(contentDir, 'SKILL.md'))) {
       throw new Error(`远端 ${sub ? `#${sub} ` : ''}中没有 SKILL.md`);
@@ -39,10 +42,10 @@ function fetchRemote(repoSpec: string): { checksum: string; cloneDir: string; su
  * 更新 git 来源的 skill：--check 只比对报告（outdated），否则拉取并原位替换
  * 中央仓库内容（symlink 指向路径不变，无需重连）。local 来源报告为 local。
  */
-export function updateSkills(
+export async function updateSkills(
   name: string | undefined,
   opts: { check?: boolean } = {},
-): UpdateResult[] {
+): Promise<UpdateResult[]> {
   const config = loadConfig();
   const names = name ? [name] : Object.keys(config.skills).sort();
   const results: UpdateResult[] = [];
@@ -63,7 +66,7 @@ export function updateSkills(
       continue;
     }
     try {
-      const fetched = fetchRemote(repoSpec);
+      const fetched = await fetchRemote(repoSpec);
       try {
         if (fetched.checksum === entry.checksum) {
           results.push({ skill: n, status: 'up-to-date' });

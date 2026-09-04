@@ -2,9 +2,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { skillDir, storeDir } from '../paths';
 import { SkillMeta, readSkillMeta, sanitizeSkillName } from '../util/frontmatter';
+
+const execFileP = promisify(execFile);
 
 export function ensureStore(): string {
   fs.mkdirSync(storeDir(), { recursive: true });
@@ -86,13 +89,16 @@ export function installFromLocal(srcDir: string, nameOverride?: string): Install
 
 /**
  * 从 git 仓库安装：`<url>` 取仓库根，`<url>#<subdir>` 定位仓库内的 skill 子目录。
- * 浅克隆到临时目录，安装后即删。
+ * 浅克隆到临时目录，安装后即删。异步执行（GUI 服务端调用时不会阻塞事件循环）。
  */
-export function installFromGit(repoSpec: string, nameOverride?: string): InstallResult {
+export async function installFromGit(
+  repoSpec: string,
+  nameOverride?: string,
+): Promise<InstallResult> {
   const [url, sub] = repoSpec.split('#');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpot-clone-'));
   try {
-    execFileSync('git', ['clone', '--depth', '1', url, tmp], { stdio: 'pipe' });
+    await execFileP('git', ['clone', '--depth', '1', url, tmp]);
     const srcDir = sub ? path.join(tmp, sub) : tmp;
     return installFromLocal(srcDir, nameOverride);
   } finally {

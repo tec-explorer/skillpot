@@ -20,7 +20,14 @@ const FIX_HINT: Record<NonNullable<Issue['fix']>, string> = {
   adopt: '需人工确认：运行 skillpot adopt 收编',
 };
 
-export function DoctorView({ toast }: { toast: (text: string, bad?: boolean) => void }) {
+export function DoctorView({
+  rev,
+  toast,
+}: {
+  /** SSE 变更序号：变化时重新体检（保留本地状态，不重挂载） */
+  rev: number;
+  toast: (text: string, bad?: boolean) => void;
+}) {
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [fixing, setFixing] = useState(false);
 
@@ -32,7 +39,7 @@ export function DoctorView({ toast }: { toast: (text: string, bad?: boolean) => 
 
   useEffect(() => {
     reload();
-  }, [reload]);
+  }, [reload, rev]);
 
   const fixAll = async () => {
     if (fixing) return;

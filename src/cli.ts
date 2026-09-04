@@ -391,8 +391,8 @@ program
   .description('检查并应用 git 来源 skill 的更新（--check 只报告；local 来源会跳过）')
   .option('--check', '只检查远端是否有更新，不应用')
   .action(
-    run((skill: string | undefined, opts: { check?: boolean }) => {
-      const results = updateSkills(skill, { check: opts.check });
+    run(async (skill: string | undefined, opts: { check?: boolean }) => {
+      const results = await updateSkills(skill, { check: opts.check });
       const label: Record<string, string> = {
         'up-to-date': '＝ 已是最新',
         outdated: '↑ 有更新',
@@ -430,17 +430,30 @@ program
 
 program
   .command('gui')
-  .description('启动本地 Web 控制台（仅监听 127.0.0.1）：开关矩阵、体检与修复')
+  .description('启动本地 Web 控制台（默认仅监听 127.0.0.1）：矩阵、收编、安装、维护与体检')
   .option('--port <port>', '指定监听端口（默认随机空闲端口）')
+  .option(
+    '--host <host>',
+    '监听地址（默认 127.0.0.1；设为 0.0.0.0 允许局域网访问，届时所有请求都要求 token）',
+  )
   .option('--no-open', '不自动打开浏览器，仅打印访问地址')
   .action(
-    run(async (opts: { port?: string; open?: boolean }) => {
+    run(async (opts: { port?: string; host?: string; open?: boolean }) => {
       const port = opts.port ? Number(opts.port) : undefined;
       if (opts.port && (!Number.isInteger(port) || (port as number) <= 0 || (port as number) > 65535)) {
         throw new Error(`非法端口：${opts.port}`);
       }
-      const { url } = await startGuiServer({ port, open: opts.open });
+      const { url } = await startGuiServer({
+        port,
+        host: opts.host,
+        open: opts.open,
+      });
       console.log(pc.bold(`✓ SkillPot GUI 已启动：${pc.cyan(url)}`));
+      if (opts.host && !['127.0.0.1', 'localhost', '::1'].includes(opts.host)) {
+        console.log(
+          pc.yellow('⚠ 已绑定非回环地址：同网段设备可访问，所有请求（含读取）均要求 token'),
+        );
+      }
       if (opts.open === false) console.log(pc.dim('（未自动打开浏览器，请手动访问上方地址）'));
       console.log(pc.dim('按 Ctrl+C 退出'));
     }),

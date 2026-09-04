@@ -162,7 +162,7 @@ export async function handleApiRequest(
     }
     if (method === 'POST' && pathname === '/api/update') {
       const b = (body ?? {}) as { skill?: unknown; check?: unknown };
-      const results = updateSkills(
+      const results = await updateSkills(
         typeof b.skill === 'string' && b.skill ? b.skill : undefined,
         { check: b.check === true },
       );
@@ -280,28 +280,66 @@ function serveStatic(pathname: string, res: http.ServerResponse): void {
 }
 
 export async function startGuiServer(
-  opts: { port?: number; open?: boolean } = {},
+  opts: { port?: number; open?: boolean; host?: string } = {},
 ): Promise<GuiServerHandle> {
   const token = crypto.randomBytes(16).toString('hex');
+  const host = opts.host ?? '127.0.0.1';
+  // 非回环绑定（局域网访问）时，GET 也要带 token，防止同网段未授权读写
+  const readAuthRequired = !['127.0.0.1', 'localhost', '::1'].includes(host);
+
+  // SSE 客户端：任一写操作成功后广播 change，浏览器多标签页自动刷新
+  const sseClients = new Set<http.ServerResponse>();
+  const broadcastChange = () => {
+    for (const res of sseClients) res.write('data: {"type":"change"}\n\n');
+  };
+
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1');
       if (url.pathname.startsWith('/api/')) {
+        const rawToken =
+          req.headers['x-skillpot-token'] ?? url.searchParams.get('token') ?? undefined;
+        const gotToken = Array.isArray(rawToken) ? rawToken[0] : rawToken;
+
+        // 非回环绑定：读操作也要认证（POST 的 token 校验在 handleApiRequest 内）
+        if (readAuthRequired && gotToken !== token) {
+          res.writeHead(403, { 'content-type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'token 缺失或不匹配' }));
+          return;
+        }
+
+        // 变更事件流（token 可经查询串携带：EventSource 无法自定义请求头）
+        if (url.pathname === '/api/events' && req.method === 'GET') {
+          res.writeHead(200, {
+            'content-type': 'text/event-stream',
+            'cache-control': 'no-store',
+            connection: 'keep-alive',
+          });
+          res.write(': connected\n\n');
+          sseClients.add(res);
+          const hb = setInterval(() => res.write(': hb\n\n'), 25_000);
+          req.on('close', () => {
+            clearInterval(hb);
+            sseClients.delete(res);
+          });
+          return;
+        }
+
         const body = req.method === 'POST' ? await readBody(req) : null;
-        const rawToken = req.headers['x-skillpot-token'];
         const out = await handleApiRequest(
           req.method ?? 'GET',
           url.pathname,
           url.searchParams,
           body,
           token,
-          Array.isArray(rawToken) ? rawToken[0] : rawToken,
+          gotToken,
         );
         if (!out) {
           res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ error: 'not found' }));
           return;
         }
+        if (req.method === 'POST' && out.status === 200) broadcastChange();
         res.writeHead(out.status, {
           'content-type': 'application/json; charset=utf-8',
           'cache-control': 'no-store',
@@ -318,16 +356,21 @@ export async function startGuiServer(
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(opts.port ?? 0, '127.0.0.1', () => resolve());
+    server.listen(opts.port ?? 0, host, () => resolve());
   });
   const addr = server.address();
   const port = typeof addr === 'object' && addr ? addr.port : (opts.port ?? 0);
-  const url = `http://127.0.0.1:${port}/?token=${token}`;
+  const url = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}/?token=${token}`;
   if (opts.open !== false) openBrowser(url);
   return {
     url,
     port,
     token,
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise((resolve) => {
+        server.close(() => resolve());
+        // SSE 长连接会挂住 close()，测试与退出时直接断开全部连接
+        server.closeAllConnections();
+      }),
   };
 }
