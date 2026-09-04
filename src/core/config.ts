@@ -5,7 +5,7 @@ import { SkillPotConfig, SkillPotState } from '../types';
 import { configPath, skillpotHome, statePath, storeDir } from '../paths';
 
 export function emptyConfig(): SkillPotConfig {
-  return { version: 1, skills: {} };
+  return { version: 1, skills: {}, sources: [] };
 }
 
 export function loadConfig(): SkillPotConfig {
@@ -13,7 +13,11 @@ export function loadConfig(): SkillPotConfig {
   if (!fs.existsSync(p)) return emptyConfig();
   const data = parse(fs.readFileSync(p, 'utf8')) as SkillPotConfig | null;
   if (!data || typeof data !== 'object') return emptyConfig();
-  return { version: 1, skills: data.skills ?? {} };
+  return {
+    version: 1,
+    skills: data.skills ?? {},
+    sources: Array.isArray(data.sources) ? data.sources : [],
+  };
 }
 
 export function lockPath(): string {

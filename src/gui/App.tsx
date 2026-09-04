@@ -6,6 +6,7 @@ import { DoctorView } from './views/DoctorView';
 import { AdoptView } from './views/AdoptView';
 import { AddView } from './views/AddView';
 import { UpdateView } from './views/UpdateView';
+import { MarketView } from './views/MarketView';
 import { DetailModal } from './views/DetailModal';
 
 export interface Toast {
@@ -14,13 +15,14 @@ export interface Toast {
   bad?: boolean;
 }
 
-type Tab = 'matrix' | 'doctor' | 'adopt' | 'add' | 'update';
+type Tab = 'matrix' | 'doctor' | 'adopt' | 'add' | 'market' | 'update';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'matrix', label: '开关矩阵' },
   { id: 'doctor', label: '体检' },
   { id: 'adopt', label: '收编' },
   { id: 'add', label: '安装' },
+  { id: 'market', label: '市场' },
   { id: 'update', label: '维护' },
 ];
 
@@ -101,6 +103,8 @@ export function App() {
           <AdoptView rev={rev} reload={reload} toast={toast} />
         ) : tab === 'add' ? (
           <AddView agents={state.matrix.agents} reload={reload} toast={toast} />
+        ) : tab === 'market' ? (
+          <MarketView reload={reload} toast={toast} />
         ) : (
           <UpdateView
             skills={Object.entries(state.skills)

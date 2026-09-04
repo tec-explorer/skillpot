@@ -118,6 +118,10 @@ body {
   color: #fff;
 }
 
+.danger-btn {
+  color: var(--conflict);
+}
+
 .matrix {
   border-collapse: collapse;
   background: var(--panel);

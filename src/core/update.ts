@@ -26,7 +26,10 @@ async function fetchRemote(repoSpec: string): Promise<{ checksum: string; cloneD
   const [url, sub] = repoSpec.split('#');
   const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpot-update-'));
   try {
-    await execFileP('git', ['clone', '--depth', '1', url, cloneDir]);
+    await execFileP('git', ['clone', '--depth', '1', url, cloneDir], {
+      timeout: 300_000,
+      maxBuffer: 16 * 1024 * 1024,
+    });
     const contentDir = sub ? path.join(cloneDir, sub) : cloneDir;
     if (!fs.existsSync(path.join(contentDir, 'SKILL.md'))) {
       throw new Error(`远端 ${sub ? `#${sub} ` : ''}中没有 SKILL.md`);

@@ -3,10 +3,24 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.6.0] - 2026-09-04
+
+### Added
+- **市场**：技能源浏览与一键安装。内置官方源 `anthropics/skills`（20 个 skill），支持添加/移除自定义 git 源（存于 `config.yaml sources:` 段，随 lockfile 团队共享）；克隆缓存在 `~/.skillpot/cache/market/`，「刷新」强制更新
+- GUI 新「市场」Tab：源切换、skill 列表（名称/说明/子目录/已装标记）、一键安装（走 `addSkill` 全流程含 lint）；CLI 新增 `skillpot source list|add|remove` 与 `skillpot market [url]`
+- 开关矩阵搜索框与状态筛选（全部/已开放/异常漂移），应对大规模 skill 列表
+
+### Fixed
+- Cursor 适配器路径修正为官方的 `~/.cursor/skills/`（0.5.1 误配为 `skills-cursor`；已按旧路径收编的条目不受影响）
+- 市场克隆先落临时目录再原子改名：中途失败/被杀不会留下"半截缓存"被误当有效；git 克隆统一加 5 分钟超时（含 `add`/`update` 的 git 路径）
+
+### Changed
+- Agent 注册表七家：新增 **DeepSeek CLI**（`~/.dsh/skills`）与 **Cursor**（官方路径）；dsh 有用户 symlink 实用佐证、两者 symlink 发现任待实机确认
+
 ## [0.5.1] - 2026-09-04
 
 ### Added
-- Agent 注册表扩至七家：新增 **DeepSeek CLI**（`~/.dsh/skills`）与 **Cursor**（`~/.cursor/skills-cursor`，官方 Agent Skills 目录）适配器；两者均为目录实测发现，symlink 发现任待实机确认
+- Agent 注册表扩至七家：新增 **DeepSeek CLI**（`~/.dsh/skills`）与 **Cursor**（`~/.cursor/skills-cursor`，后于 0.6.0 修正为官方路径）适配器
 
 ## [0.5.0] - 2026-09-04
 

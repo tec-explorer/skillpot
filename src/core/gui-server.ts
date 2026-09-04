@@ -17,6 +17,13 @@ import { adoptSkills, scanAdoptable } from './adopt';
 import { readSkillDetail } from './skill-detail';
 import { uninstallSkill } from './uninstall';
 import { updateSkills } from './update';
+import {
+  addSource,
+  installFromMarket,
+  listSources,
+  removeSource,
+  scanSource,
+} from './market';
 import { sanitizeSkillName } from '../util/frontmatter';
 
 /**
@@ -175,6 +182,43 @@ export async function handleApiRequest(
       }
       uninstallSkill(b.skill);
       return { status: 200, body: { ok: true, message: `已卸载 ${b.skill}` } };
+    }
+    if (method === 'GET' && pathname === '/api/market/sources') {
+      return { status: 200, body: { sources: listSources() } };
+    }
+    if (method === 'POST' && pathname === '/api/market/sources/add') {
+      const b = (body ?? {}) as { url?: unknown; name?: unknown };
+      if (typeof b.url !== 'string') return { status: 400, body: { error: '需要 url 字段' } };
+      const src = addSource(
+        b.url.trim(),
+        typeof b.name === 'string' && b.name.trim() ? b.name.trim() : undefined,
+      );
+      return { status: 200, body: { source: src } };
+    }
+    if (method === 'POST' && pathname === '/api/market/sources/remove') {
+      const b = (body ?? {}) as { url?: unknown };
+      if (typeof b.url !== 'string') return { status: 400, body: { error: '需要 url 字段' } };
+      removeSource(b.url);
+      return { status: 200, body: { ok: true } };
+    }
+    if (method === 'GET' && pathname === '/api/market/scan') {
+      const url = query.get('url');
+      if (!url) return { status: 400, body: { error: '需要 url 查询参数' } };
+      const result = await scanSource(url, { refresh: query.get('refresh') === '1' });
+      return { status: 200, body: result };
+    }
+    if (method === 'POST' && pathname === '/api/market/install') {
+      const b = (body ?? {}) as { url?: unknown; subdir?: unknown; name?: unknown; for?: unknown };
+      if (typeof b.url !== 'string' || typeof b.subdir !== 'string') {
+        return { status: 400, body: { error: '需要 url 与 subdir 字段' } };
+      }
+      const result = await installFromMarket(b.url, b.subdir, {
+        name: typeof b.name === 'string' && b.name.trim() ? b.name.trim() : undefined,
+        for: Array.isArray(b.for)
+          ? (b.for.filter((x) => typeof x === 'string') as string[])
+          : undefined,
+      });
+      return { status: 200, body: result };
     }
     if (method === 'GET' && pathname === '/api/doctor') {
       return { status: 200, body: { issues: runDoctor() } };

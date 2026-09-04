@@ -117,3 +117,16 @@ export const UPDATE_STATUS_LABEL: Record<UpdateStatus, string> = {
   local: '· 本地来源',
   error: '✗ 失败',
 };
+
+export interface SourceInfo {
+  name: string;
+  url: string;
+  builtin: boolean;
+}
+
+export interface MarketSkill {
+  name: string;
+  subdir: string;
+  description: string;
+  installed: boolean;
+}

@@ -10,6 +10,14 @@ export interface SkillEntry {
 export interface SkillPotConfig {
   version: 1;
   skills: Record<string, SkillEntry>;
+  /** 市场自定义源（git 仓库）；内置官方源不落盘 */
+  sources?: ConfigSource[];
+}
+
+export interface ConfigSource {
+  name?: string;
+  url: string;
+  added_at: string;
 }
 
 /** 本工具创建的链接台账：卸载/禁用只动台账内文件 */

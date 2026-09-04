@@ -98,7 +98,10 @@ export async function installFromGit(
   const [url, sub] = repoSpec.split('#');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpot-clone-'));
   try {
-    await execFileP('git', ['clone', '--depth', '1', url, tmp]);
+    await execFileP('git', ['clone', '--depth', '1', url, tmp], {
+      timeout: 300_000,
+      maxBuffer: 16 * 1024 * 1024,
+    });
     const srcDir = sub ? path.join(tmp, sub) : tmp;
     return installFromLocal(srcDir, nameOverride);
   } finally {

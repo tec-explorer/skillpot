@@ -26,3 +26,8 @@ export function configPath(): string {
 export function statePath(): string {
   return path.join(skillpotHome(), 'state.json');
 }
+
+/** 市场源的克隆缓存目录（~/.skillpot/cache/market/<url-hash>） */
+export function marketCacheDir(): string {
+  return path.join(skillpotHome(), 'cache', 'market');
+}

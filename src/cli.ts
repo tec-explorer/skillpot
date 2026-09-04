@@ -12,6 +12,7 @@ import { initStore, loadConfig } from './core/config';
 import { storeSkillNames } from './core/store';
 import { addSkill } from './core/add';
 import { uninstallSkill } from './core/uninstall';
+import { addSource, listSources, removeSource, scanSource } from './core/market';
 import { disableSkill, enableSkill, resolveAgentIds, SyncResult } from './core/sync';
 import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
@@ -456,6 +457,69 @@ program
       }
       if (opts.open === false) console.log(pc.dim('（未自动打开浏览器，请手动访问上方地址）'));
       console.log(pc.dim('按 Ctrl+C 退出'));
+    }),
+  );
+
+const sourceCmd = program.command('source').description('管理市场技能源（git 仓库）');
+sourceCmd
+  .command('list')
+  .description('列出已配置的技能源')
+  .action(
+    run(() => {
+      const rows = listSources().map((s) => [s.name, s.url, s.builtin ? '内置' : '自定义']);
+      console.log(renderTable(['名称', 'URL', '类型'], rows));
+    }),
+  );
+sourceCmd
+  .command('add <url> [name]')
+  .description('添加自定义技能源（git 仓库地址）')
+  .action(
+    run(async (url: string, name?: string) => {
+      const s = addSource(url, name);
+      console.log(pc.green(`✔ 已添加源 ${s.name}：${s.url}`));
+      console.log(pc.dim(`预览：skillpot market ${s.url}，或在 GUI「市场」页一键安装`));
+    }),
+  );
+sourceCmd
+  .command('remove <url>')
+  .description('移除自定义技能源')
+  .action(
+    run((url: string) => {
+      removeSource(url);
+      console.log(pc.green(`✔ 已移除源 ${url}`));
+    }),
+  );
+
+program
+  .command('market [url]')
+  .description('浏览技能源里的 skill（缺省扫描全部源；官方源为 anthropics/skills）')
+  .option('--refresh', '强制重新克隆源仓库（默认命中本地缓存）')
+  .action(
+    run(async (url: string | undefined, opts: { refresh?: boolean }) => {
+      const targets = url ? [url] : listSources().map((s) => s.url);
+      for (const t of targets) {
+        const r = await scanSource(t, { refresh: opts.refresh });
+        console.log(
+          pc.bold(`${t}（${r.skills.length} 个 skill，${r.cloned ? '已重新克隆' : '本地缓存'}）`),
+        );
+        if (r.skills.length) {
+          console.log(
+            renderTable(
+              ['Skill', '说明', '子目录', '已装'],
+              r.skills.map((s) => [
+                s.name,
+                s.description.slice(0, 56),
+                s.subdir,
+                s.installed ? '✓' : '',
+              ]),
+            ),
+          );
+        }
+        console.log();
+      }
+      console.log(
+        pc.dim(`安装：skillpot add <源地址>#<子目录>，或在 GUI「市场」页一键安装并开放`),
+      );
     }),
   );
 
