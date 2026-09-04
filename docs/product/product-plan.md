@@ -199,23 +199,37 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 
 ## 10. 路线图
 
-### M0 — De-risk 验证（约 1 周，动手前必做）
-- [ ] symlink 实测：把同一个 skill 以 symlink 方式分别放进 Claude / ZCode / OpenCode / Codex / Gemini 的 skill 目录，确认被发现且正常触发
-- [ ] 确认 Codex `~/.codex/skills/` 的官方格式与 frontmatter 兼容度（看 `.system/` 里的样例）
-- [ ] 确认 Cursor 的官方 skill 路径（`skills-cursor` 是本机特例还是约定）
-- [ ] 调研 Qoder / DeepSeek harness 的扩展机制
-- [ ] npm 名称查重与定名
+### M0 — De-risk 验证 ✅（2026-09-03/04 完成）
+- [x] symlink 实测：Claude/ZCode/Codex/Gemini 以 symlink 暴露可被发现（M0 探针确认）
+- [x] Codex `~/.codex/skills/` 官方格式与 frontmatter 兼容（`.system/` 样例确认）
+- [x] Cursor 官方路径确认为 `~/.cursor/skills/`（官方 create-skill 技能明示；`skills-cursor` 为本机特例，0.6.0 已修正适配器）
+- [x] DeepSeek harness = npm `@deepseek-ai/dsh`（`~/.dsh/skills` 同 SKILL.md 约定，已接 A 档）；Qoder 无 skills 机制，维持观察
+- [x] 定名 skillpot，npm 包 `@tec-explorer/skillpot`
 
-### M1 — MVP（2~3 周）
+### M1 — MVP ✅（2026-09-03 交付，超计划：+GUI）
 范围：Claude Code、ZCode、OpenCode、Codex、Gemini CLI 五家 A 档 symlink 策略。
 命令面：`init / agents / add / list / enable / disable / remove / doctor`。
 交付形态：npm 包，`npx skillpot` 即用；TS 编写，vitest 单测 + 用真实 Agent 目录做 e2e 冒烟。
 
-### M2 — 管理深化（4~6 周）
-`update/outdated/lockfile`、`adopt`（一键收编本机 55+ 既有 skill 的场景）、项目级 `.skillpot.yaml` 与团队 bootstrap、TUI 矩阵视图、`lint` 安全扫描、`mcp` bridge（B/C 档覆盖 Cursor/Qoder 等）。
+### M2 — 管理深化 ✅（2026-09-03/04 交付 ~90%）
+`update/lockfile` ✅、`adopt`（含 --move）✅、项目级 `.skillpot.yaml` 与团队 bootstrap ⏳、TUI 矩阵视图 ✅、`lint` ✅（规则待补齐，见主线 A）、`mcp` bridge ✅、GUI ✅（超计划）、`skillpot audit` ⏳、update diff ⏳、copy+sync B 档与 `--broadcast` ⏳。
+遗留项已并入下方主线 A/B/C。
 
-### M3 — 生态与商业
+### M3 — 生态与商业（进行中：市场 M1 已交付）
 云端 registry（搜索/发布/评分）与 M2 的来源体系打通；GUI/桌面端；团队版（私有 registry、集中策略下发：如"公司合规 skill 全员强制开启"）。
+
+### 当前主线（2026-09-04 评审确定，按序推进）
+
+竞争态势：`vercel-labs/skills` CLI（73 Agent、skills.sh 目录背书）已逼近分发与覆盖面；SkillPot 不拼覆盖，**加速做深"管理层"护城河**（矩阵可控性/安全纵深/团队对齐），分发侧与 skills.sh 集成而非竞争。
+
+| 主线 | 内容 | 状态 |
+|---|---|---|
+| **A 安全纵深** | lint 补齐（凭据读取/外发外传检测）、`skillpot audit`（各 Agent 实际生效报告）、`update --diff`（更新前展示差异）、skills.sh audit 集成 | 🔨 进行中 |
+| **B 团队对齐** | 项目级 `.skillpot.yaml` + `skillpot sync`（成员按清单一键对齐安装与开放） | 📋 待开工 |
+| **C 覆盖与验证** | dsh/Cursor symlink 终验；不认 symlink 的 Agent 走 B 档 copy+sync；`--broadcast` 广播模式；Amp 等新 Agent 调研 | 🔁 随版本穿插 |
+| **D 生态与触达** | skills.sh 在线目录集成（先解 auth）；英文 README；Homebrew 分发 | 📋 排队 |
+
+优先级：A（定位支柱欠账）→ B（第二目标用户 + 对竞品护城河）→ C/D 穿插。
 
 ---
 
@@ -271,5 +285,8 @@ npm 查重：`skillpot` 可用；`skillhub`（v0.4.1，同类产品）与 `skill
 - [2026-09-03 M0+M1 执行报告](../reports/2026-09-03-m0-m1-execution.md)
 - [2026-09-03 M2 执行报告](../reports/2026-09-03-m2-execution.md)
 - [2026-09-03 TUI 执行报告](../reports/2026-09-03-tui-execution.md)
-- [2026-09-03 收编交互与 move 模式执行报告](../reports/2026-09-03-adopt-move-ux-execution.md)（最新）
+- [2026-09-03 收编交互与 move 模式执行报告](../reports/2026-09-03-adopt-move-ux-execution.md)
+- [2026-09-04 GUI G1 执行报告](../reports/2026-09-04-gui-g1-execution.md)
+- [2026-09-04 GUI G2/G3/G4 执行报告](../reports/2026-09-04-gui-g2-g3-g4-execution.md)
+- [2026-09-04 跟进批次(市场/适配器/矩阵优化)执行报告](../reports/2026-09-04-followups-market-execution.md)（最新）
 

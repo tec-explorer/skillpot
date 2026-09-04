@@ -15,6 +15,42 @@ export interface UpdateResult {
   skill: string;
   status: UpdateStatus;
   detail?: string;
+  /** 文件级差异（--check 时为"将产生的变化"，应用时为"实际产生的变化"） */
+  diff?: UpdateDiff;
+}
+
+export interface UpdateDiff {
+  added: string[];
+  removed: string[];
+  modified: string[];
+}
+
+/** 目录级文件差异：相对路径比较（存在性 + 内容一致性），.git 忽略 */
+function diffTree(oldDir: string, newDir: string): UpdateDiff {
+  const IGNORED = new Set(['.git']);
+  const collect = (root: string): Map<string, string> => {
+    const map = new Map<string, string>();
+    const walk = (d: string) => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        if (IGNORED.has(e.name)) continue;
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (e.isFile()) map.set(path.relative(root, p), p);
+      }
+    };
+    walk(root);
+    return map;
+  };
+  const oldFiles = collect(oldDir);
+  const newFiles = collect(newDir);
+  const diff: UpdateDiff = { added: [], removed: [], modified: [] };
+  for (const [rel, p] of newFiles) {
+    if (!oldFiles.has(rel)) diff.added.push(rel);
+    else if (fs.readFileSync(p) !== fs.readFileSync(oldFiles.get(rel)!)) diff.modified.push(rel);
+  }
+  for (const rel of oldFiles.keys()) if (!newFiles.has(rel)) diff.removed.push(rel);
+  for (const k of ['added', 'removed', 'modified'] as const) diff[k].sort();
+  return diff;
 }
 
 function parseGitSource(source: string): string | null {
@@ -75,14 +111,21 @@ export async function updateSkills(
           results.push({ skill: n, status: 'up-to-date' });
           continue;
         }
+        const srcDir = fetched.sub ? path.join(fetched.cloneDir, fetched.sub) : fetched.cloneDir;
+        // 展示 diff 再应用（§9.2）：--check 时为"将产生的变化"
+        const diff = diffTree(skillDir(n), srcDir);
         if (opts.check) {
-          results.push({ skill: n, status: 'outdated', detail: `远端 ${fetched.checksum.slice(0, 15)}` });
+          results.push({
+            skill: n,
+            status: 'outdated',
+            detail: `远端 ${fetched.checksum.slice(0, 15)}`,
+            diff,
+          });
           continue;
         }
         // 原位替换：先落到临时目录，再换掉仓库内容
         const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpot-new-'));
         try {
-          const srcDir = fetched.sub ? path.join(fetched.cloneDir, fetched.sub) : fetched.cloneDir;
           fs.cpSync(srcDir, staging, { recursive: true });
           fs.rmSync(skillDir(n), { recursive: true, force: true });
           fs.cpSync(staging, skillDir(n), { recursive: true });
@@ -91,7 +134,12 @@ export async function updateSkills(
         }
         entry.checksum = dirChecksum(skillDir(n));
         entry.installed_at = new Date().toISOString();
-        results.push({ skill: n, status: 'updated', detail: entry.checksum.slice(0, 15) });
+        results.push({
+          skill: n,
+          status: 'updated',
+          detail: entry.checksum.slice(0, 15),
+          diff,
+        });
       } finally {
         fs.rmSync(fetched.cloneDir, { recursive: true, force: true });
       }

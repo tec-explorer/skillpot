@@ -13,6 +13,7 @@ import { storeSkillNames } from './core/store';
 import { addSkill } from './core/add';
 import { uninstallSkill } from './core/uninstall';
 import { addSource, listSources, removeSource, scanSource } from './core/market';
+import { runAudit } from './core/audit';
 import { disableSkill, enableSkill, resolveAgentIds, SyncResult } from './core/sync';
 import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
@@ -302,6 +303,52 @@ program
     }),
   );
 
+program
+  .command('audit')
+  .description('审计：每个 Agent 实际生效的 skill、来源与被绕过/遮蔽情况')
+  .option('--json', '以 JSON 输出')
+  .action(
+    run((opts: { json?: boolean }) => {
+      const report = runAudit();
+      if (opts.json) {
+        console.log(JSON.stringify(report, null, 2));
+        return;
+      }
+      for (const a of report.agents) {
+        console.log(
+          pc.bold(`${a.agentName} (${a.agent})`) + ` — 实际生效 ${a.active.length} 个`,
+        );
+        if (a.active.length) {
+          console.log(
+            renderTable(
+              ['Skill', '来源', '声明'],
+              a.active.map((e) => [
+                e.skill,
+                e.source.length > 64 ? e.source.slice(0, 61) + '…' : e.source,
+                e.enabled ? '开放' : pc.yellow('关闭（链接残留）'),
+              ]),
+            ),
+          );
+        } else {
+          console.log(pc.dim('  （无生效 skill）'));
+        }
+        for (const e of a.external) {
+          console.log(pc.yellow(`⚠ 外部同名条目（非本工具创建）：${e.path}`));
+        }
+        for (const f of a.findings) {
+          console.log(f.level === 'error' ? pc.red(`✗ ${f.message}`) : pc.yellow(`⚠ ${f.message}`));
+        }
+        console.log();
+      }
+      const total = report.agents.reduce((n, a) => n + a.findings.length, 0);
+      console.log(
+        total
+          ? pc.yellow(`审计完成，共 ${total} 条发现，详见上表`)
+          : pc.green('审计通过：各 Agent 实际生效状态与矩阵一致'),
+      );
+    }),
+  );
+
 function printIssues(issues: { level: string; message: string }[]): void {
   for (const i of issues) {
     const tag = i.level === 'error' ? pc.red('error') : pc.yellow('warn ');
@@ -404,7 +451,24 @@ program
       console.log(
         renderTable(
           ['Skill', '状态', '备注'],
-          results.map((r) => [r.skill, label[r.status] ?? r.status, r.detail ?? '']),
+          results.map((r) => {
+            let note = r.detail ?? '';
+            if (r.diff) {
+              const { added, modified, removed } = r.diff;
+              const counts = [
+                added.length ? `+${added.length}` : '',
+                modified.length ? `~${modified.length}` : '',
+                removed.length ? `-${removed.length}` : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
+              const paths = [...added, ...modified, ...removed];
+              note = `${note ? note + ' ' : ''}diff ${counts}（${paths.slice(0, 4).join('、')}${
+                paths.length > 4 ? ' 等' : ''
+              }）`;
+            }
+            return [r.skill, label[r.status] ?? r.status, note];
+          }),
         ),
       );
     }),

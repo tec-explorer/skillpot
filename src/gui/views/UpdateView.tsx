@@ -121,6 +121,12 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
                 </td>
                 <td className={st?.status === 'outdated' ? 'warn-text' : ''}>
                   {st ? UPDATE_STATUS_LABEL[st.status] : '—'}
+                  {st?.diff && (
+                    <span className="dim small">
+                      {' '}
+                      diff +{st.diff.added.length} ~{st.diff.modified.length} -{st.diff.removed.length}
+                    </span>
+                  )}
                   {st?.detail && <span className="dim small"> {st.detail}</span>}
                 </td>
                 <td>

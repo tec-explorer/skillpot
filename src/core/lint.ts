@@ -14,6 +14,27 @@ const DANGEROUS_PATTERNS: [RegExp, string][] = [
   [/\bwget\s+[^\n|]*\|\s*(?:ba|z)?sh\b/, 'wget 管道执行脚本'],
   [/\bsudo\b/, 'sudo 提权'],
   [/\bchmod\s+777\b/, 'chmod 777 开放写权限'],
+  // —— 凭据与敏感信息（§9.1：读取 env / credentials）——
+  [/\.ssh[/']|\.aws[/']|\.kube[/']|\.netrc\b/, '触碰 SSH/云厂商凭据文件'],
+  [
+    /\b(?:API[_-]?KEY|APIKEY|SECRET[_-]?KEY|ACCESS[_-]?TOKEN|PRIVATE[_-]?KEY|AWS_SECRET[_-]?ACCESS[_-]?KEY)\b/i,
+    '引用密钥类标识符',
+  ],
+  [/\bprintenv\b/, 'printenv 导出环境变量'],
+  [
+    /process\.env\.[A-Z_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)\w*/i,
+    '读取 Node 密钥类环境变量',
+  ],
+  // —— 外发数据（§9.1：外发网络请求）——
+  [
+    /\bcurl\b[^\n]*(?:-X\s*(?:POST|PUT)\b|--data(?:-binary|-raw|-urlencode)?\b|--form\b|--upload-file\b|\s-T\s)/,
+    'curl 向外发送数据（POST/PUT/上传）',
+  ],
+  [/\bwget\b[^\n]*--(?:post-data|post-file)\b/, 'wget 向外发送数据'],
+  [/\bnc\b[^\n]*\s-e\b/, 'nc -e 远程执行/反弹 shell'],
+  [/\b(?:scp|rsync)\b[^\n]*\b\w+@(?!localhost|127\.0\.0\.1)/, '向远端主机拷贝文件'],
+  // —— 反取证 ——
+  [/\.(?:bash|zsh)_history/, '触碰 shell 历史文件'],
 ];
 
 const SCRIPT_EXT = /\.(sh|bash|zsh|py|js|mjs|cjs|ts|rb|pl)$/;

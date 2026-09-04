@@ -85,6 +85,7 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | `adopt [--from agents] [-f agents] [--move] [--dry-run]` | 收编已有 skill；`--move` 移动模式 |
 | `remove <skill>` | 卸载（撤下所有链接 + 删除文件） |
 | `doctor [--fix]` | 体检与自动修复 |
+| `audit [--json]` | 审计：各 Agent 实际生效 skill、来源与被绕过/遮蔽 |
 | `lint [skill] [--strict]` | 安全与质量检查：frontmatter + 脚本高危模式 |
 | `update [skill] [--check]` | 检查/应用 git 来源 skill 的更新 |
 | `gui [--port] [--host] [--no-open]` | Web 控制台：开关矩阵/体检/收编/安装/市场/维护 |

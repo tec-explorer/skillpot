@@ -90,3 +90,32 @@ describe('update', () => {
     ]);
   });
 });
+
+describe('update diff', () => {
+  it('更新结果携带文件级差异（新增/修改/删除）', async () => {
+    const repo = makeRepo();
+    commitFile(repo, 'notes.md', 'old notes\n', 'add notes');
+    await installFromRepo(repo);
+    commitFile(repo, 'SKILL.md', '---\nname: git-skill\ndescription: Version two with changes.\n---\n# v2\n', 'v2');
+    commitFile(repo, 'extra.md', 'brand new file\n', 'add extra');
+    execFileSync('git', ['-C', repo, 'rm', '-q', 'notes.md']);
+    execFileSync('git', ['-C', repo, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'remove notes']);
+
+    const results = await updateSkills('git-skill');
+    expect(results[0].status).toBe('updated');
+    expect(results[0].diff).toEqual({
+      added: ['extra.md'],
+      removed: ['notes.md'],
+      modified: ['SKILL.md'],
+    });
+  });
+
+  it('--check 同样携带将产生的 diff', async () => {
+    const repo = makeRepo();
+    await installFromRepo(repo);
+    commitFile(repo, 'extra.md', 'new\n', 'add extra');
+    const results = await updateSkills('git-skill', { check: true });
+    expect(results[0].status).toBe('outdated');
+    expect(results[0].diff?.added).toEqual(['extra.md']);
+  });
+});

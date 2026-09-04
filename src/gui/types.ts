@@ -104,10 +104,17 @@ export interface SkillDetail {
 
 export type UpdateStatus = 'up-to-date' | 'outdated' | 'updated' | 'local' | 'error';
 
+export interface UpdateDiff {
+  added: string[];
+  removed: string[];
+  modified: string[];
+}
+
 export interface UpdateResult {
   skill: string;
   status: UpdateStatus;
   detail?: string;
+  diff?: UpdateDiff;
 }
 
 export const UPDATE_STATUS_LABEL: Record<UpdateStatus, string> = {
