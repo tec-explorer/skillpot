@@ -3,6 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-brightgreen.svg)](package.json)
 [![CI](https://github.com/tec-explorer/skillpot/actions/workflows/ci.yml/badge.svg)](https://github.com/tec-explorer/skillpot/actions)
+[![npm](https://img.shields.io/npm/v/@tec-explorer/skillpot)](https://www.npmjs.com/package/@tec-explorer/skillpot)
+[![npm downloads](https://img.shields.io/npm/dm/@tec-explorer/skillpot)](https://www.npmjs.com/package/@tec-explorer/skillpot)
 
 **跨编程 Agent 的 Skill 管理器 —— 一处安装，按 Agent 开关，一处更新。**
 *Cross-agent skill manager for coding agents: install once, expose per agent, update once.*
@@ -31,7 +33,8 @@
 ├── skills/<name>/SKILL.md   # 中央仓库：唯一真身（自包含，symlink 已解引用）
 ├── config.yaml              # 来源/版本/校验和 + skill×Agent 开关矩阵
 ├── state.json               # 本工具创建的链接台账（卸载只动台账内文件）
-└── skillspot.lock.json      # 机器可读快照（团队共享/审计用）
+├── skillspot.lock.json      # 机器可读快照（团队共享/审计用）
+└── cache/market/            # 市场源克隆缓存（浅克隆，「刷新」强制更新）
 ```
 
 `enable` 在目标 Agent 的用户级 skills 目录创建指向中央仓库的 **symlink**（Agent 启动扫描目录时即被发现）；`disable` 撤下该 symlink。只动台账内的链接，绝不碰用户自建内容；遇到真实同名目录一律跳过并告警。
@@ -56,7 +59,8 @@ skillpot init                        # 初始化 ~/.skillpot 并检测本机 Age
 skillpot adopt --dry-run             # 预览：各 Agent 目录下有哪些 skill 可收编
 skillpot adopt --move                # 收编并以移动模式部署（原目录替换为 symlink）
 spot tui                             # 交互式开关矩阵：↑↓←→ 移动，空格切换，a 整行
-skillpot gui                         # 浏览器控制台（本地 Web GUI）：矩阵点击切换 + 体检一键修复
+skillpot gui                         # 浏览器控制台：开关矩阵/体检/收编/安装/市场/维护
+skillpot market                      # 浏览技能源（内置 Anthropic 官方库，可加自定义源）
 skillpot add ~/path/to/my-skill      # 安装新 skill（默认不对任何 Agent 开放）
 skillpot enable my-skill --for claude-code,zcode
 skillpot doctor                      # 体检：断链/漂移/同名冲突
@@ -75,7 +79,7 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | `init` | 初始化中央仓库 + Agent 检测（空仓库时触发收编提醒） |
 | `agents [--json]` | 检测本机编程 Agent（PATH 二进制 + 配置目录指纹） |
 | `add <dir\|git[#subdir]> [-n 名字]` | 安装 skill（自动 lint） |
-| `list [-a agent]` | 开关矩阵 / 某 Agent 的可见列表 |
+| `list [-a agent]` | 已装 skill 清单与开放状态 / 某 Agent 的可见列表 |
 | `enable <skill> -f a,b\|all` | 开放（建 symlink） |
 | `disable <skill> -f a,b\|all` | 关闭（撤 symlink） |
 | `adopt [--from agents] [-f agents] [--move] [--dry-run]` | 收编已有 skill；`--move` 移动模式 |
@@ -83,6 +87,9 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | `doctor [--fix]` | 体检与自动修复 |
 | `lint [skill] [--strict]` | 安全与质量检查：frontmatter + 脚本高危模式 |
 | `update [skill] [--check]` | 检查/应用 git 来源 skill 的更新 |
+| `gui [--port] [--host] [--no-open]` | Web 控制台：开关矩阵/体检/收编/安装/市场/维护 |
+| `market [url] [--refresh]` | 浏览技能源里的 skill（缺省扫描全部源） |
+| `source list\|add <url>\|remove <url>` | 市场源管理（内置官方源 + 自定义 git 源） |
 | `mcp` | 以 MCP server (stdio) 运行，供支持 MCP 的 Agent 消费 |
 | `tui [--once]` | 交互式开关矩阵；无 TTY 自动降级静态输出 |
 
@@ -95,8 +102,10 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | Codex CLI | `~/.codex/skills` | 同规范样例确认（`.system` 内置 skill） |
 | OpenCode | `~/.config/opencode/skill` | 官方文档，待实机确认 |
 | Gemini CLI | `~/.gemini/skills` | 官方支持 Agent Skills，待实机确认 |
+| DeepSeek CLI (dsh) | `~/.dsh/skills` | 目录约定同 Claude，symlink 发现任待实机确认 |
+| Cursor | `~/.cursor/skills` | 官方 create-skill 技能明示路径，symlink 发现任待实机确认 |
 
-其他支持 MCP 的 Agent（Cursor、Qoder、私有 harness…）可走 [MCP bridge](#mcp-bridgec-档兜底)。新增适配器方法见 [docs/design/agent-adapters.md](./docs/design/agent-adapters.md)。
+其他支持 MCP 的 Agent（Qoder、私有 harness…）可走 [MCP bridge](#mcp-bridgec-档兜底)。新增适配器方法见 [docs/design/agent-adapters.md](./docs/design/agent-adapters.md)。
 
 ## MCP bridge（C 档兜底）
 
@@ -110,6 +119,7 @@ Skill 是注入模型上下文的指令 + 可携带可执行脚本。SkillPot �
 - 安装时自动 `lint`：frontmatter 完整性、脚本高危模式（`rm -rf`、`curl|sh`、`sudo`…）
 - 卸载/禁用只动 `state.json` 台账内的链接，绝不触碰用户自建内容
 - 拷贝解引用 symlink，仓库自包含，不依赖来源机器的链接目标
+- Web 控制台仅监听 `127.0.0.1`，写操作需携带启动时生成的随机 token（`--host 0.0.0.0` 局域网模式下读取也强制认证）
 
 漏洞报告请走 [SECURITY.md](./SECURITY.md)，勿用公开 Issue。
 
@@ -122,7 +132,10 @@ Skill 是注入模型上下文的指令 + 可携带可执行脚本。SkillPot �
 符号链接在 Windows 需要开发者模式或管理员权限，目前未测试，欢迎 PR。
 
 **和 skill registry（skills.sh 等）是什么关系？**
-Registry 解决"从哪找 skill"，SkillPot 解决"装到哪、给谁用、怎么停、怎么更新"——管理层。两者互补，registry 可作为 `add` 的上游来源。
+Registry 解决"从哪找 skill"，SkillPot 解决"装到哪、给谁用、怎么停、怎么更新"——管理层。0.6.0 起 SkillPot 内置 Anthropic 官方技能库并支持自定义 git 技能源（GUI「市场」页 / `skillpot source`、`skillpot market`）；skills.sh 这类在线目录的可搜索接入在规划中，当前可把目录站看到的 skill 用 `owner/repo#子目录` 方式直接安装。
+
+**安装后 `skillpot` 命令不存在，或版本不对？**
+多半是全局/本地装混了：`npm install` 少了 `-g` 会把包装进当前目录的 `node_modules`，PATH 上并没有命令。用 `npm i -g @tec-explorer/skillpot` 全局安装；`npm ls -g @tec-explorer/skillpot` 查全局版本，`which skillpot` 确认命令来源。
 
 ## 开发
 
@@ -137,7 +150,7 @@ npm run build     # tsc 类型检查 + esbuild 打包为单文件 ESM（dist/cli
 
 ## 文档
 
-全部文档在 [docs/](./docs/README.md)（索引）：[产品规划](./docs/product/product-plan.md) ｜ [设计：适配器与落地策略](./docs/design/agent-adapters.md) ｜ [设计：MCP bridge](./docs/design/mcp-bridge.md) ｜ [里程碑执行报告](./docs/reports/) ｜ [CHANGELOG](./CHANGELOG.md)
+全部文档在 [docs/](./docs/README.md)（索引）：[功能指南(含截图)](./docs/guide.md) ｜ [产品规划](./docs/product/product-plan.md) ｜ [设计：适配器与落地策略](./docs/design/agent-adapters.md) ｜ [设计：MCP bridge](./docs/design/mcp-bridge.md) ｜ [里程碑执行报告](./docs/reports/) ｜ [CHANGELOG](./CHANGELOG.md)
 
 ## 贡献
 

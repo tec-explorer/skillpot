@@ -8,6 +8,9 @@
 ### Added
 - `docs/guide.md` 功能指南:TUI/GUI 全功能截图与分步说明(开关矩阵、详情、体检、收编、安装、市场、维护、TUI、MCP),README 挂载主视觉截图与指南入口
 
+### Changed
+- README 对照 0.6.0 全面校准:命令表补 gui/market/source、Agent 表扩至七家、快速开始补市场、FAQ 重写(skills.sh 关系、全局/本地安装排查)、安全模型补控制台 token 说明、docs 索引收录功能指南与 9 月 4 日三份执行报告
+
 ## [0.6.0] - 2026-09-04
 
 ### Added

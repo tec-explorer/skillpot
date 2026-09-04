@@ -175,7 +175,7 @@ skillpot mcp
 
 ## 11. 支持的 Agent
 
-Claude Code、ZCode、Codex CLI、OpenCode、Gemini CLI、DeepSeek CLI(dsh)、Cursor,共七家。适配器 = 已确认的"用户级 skills 发现路径" + 二进制/目录指纹检测; welcoming 新 Agent:只要它扫描某个用户级目录下的 `SKILL.md` 目录,就能以约十行适配器接入(欢迎 PR)。
+Claude Code、ZCode、Codex CLI、OpenCode、Gemini CLI、DeepSeek CLI(dsh)、Cursor,共七家。适配器 = 已确认的"用户级 skills 发现路径" + 二进制/目录指纹检测。新增 Agent:只要它扫描某个用户级目录下的 `SKILL.md` 目录,就能以约十行适配器接入(欢迎 PR)。
 
 ---
 
