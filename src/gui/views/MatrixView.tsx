@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../api';
 import { CellState, StateResp, ToggleResp } from '../types';
 import { Toast } from '../App';
@@ -9,6 +9,14 @@ interface Props {
   toast: (text: string, bad?: boolean) => void;
   onOpenDetail: (skill: string) => void;
 }
+
+type StatusFilter = 'all' | 'enabled' | 'issue';
+
+const FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: '全部' },
+  { id: 'enabled', label: '已开放' },
+  { id: 'issue', label: '异常/漂移' },
+];
 
 /** 与 TUI cellGlyph 同一套语义：✓ 已开放 / ⚠ 漂移 / ! 异常 / × 外部占用 / · 未开放 */
 function cellClass(cs: CellState): string {
@@ -40,7 +48,24 @@ function cellTitle(cs: CellState): string {
 
 export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const { matrix } = state;
+
+  const filteredSkills = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return matrix.skills.filter((s) => {
+      if (q && !s.toLowerCase().includes(q)) return false;
+      if (statusFilter === 'all') return true;
+      const cells = matrix.agents.map((a) => matrix.cells[s]?.[a.id]);
+      if (statusFilter === 'enabled') return cells.some((c) => c?.enabled);
+      return cells.some(
+        (c) =>
+          c &&
+          ((c.enabled && !c.actual) || (c.enabled && c.actual && !c.managed) || (!c.enabled && c.managed)),
+      );
+    });
+  }, [matrix, query, statusFilter]);
 
   const toggle = async (skill: string, agentId: string) => {
     const key = `${skill}@${agentId}`;
@@ -74,6 +99,28 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
 
   return (
     <div className="matrix-wrap">
+      <div className="toolbar">
+        <input
+          className="input grow"
+          placeholder="搜索 skill 名…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <div className="segment">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              className={statusFilter === f.id ? 'seg-btn active' : 'seg-btn'}
+              onClick={() => setStatusFilter(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <span className="dim small">
+          {filteredSkills.length}/{matrix.skills.length}
+        </span>
+      </div>
       <table className="matrix">
         <thead>
           <tr>
@@ -87,7 +134,7 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           </tr>
         </thead>
         <tbody>
-          {matrix.skills.map((s) => (
+          {filteredSkills.map((s) => (
             <tr key={s}>
               <td
                 className="skill-name link"
@@ -114,6 +161,11 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           ))}
         </tbody>
       </table>
+      {filteredSkills.length === 0 && (
+        <p className="dim" style={{ textAlign: 'center', marginTop: 16 }}>
+          没有匹配的 skill（换个关键词或切回「全部」）。
+        </p>
+      )}
       <p className="legend">
         ✓ 已开放　⚠ 漂移（声明开放但链接缺失）　! 链接状态异常　× 外部同名占用　· 未开放
         <span className="dim">　·　点击单元格切换（重启示例会话后生效）</span>
