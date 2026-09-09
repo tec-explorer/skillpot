@@ -10,7 +10,7 @@
 ## 快速上手
 
 ```bash
-git clone https://github.com/zhangmingyong/skillpot.git
+git clone https://github.com/tec-explorer/skillpot.git
 cd skillpot
 npm install
 npm test          # vitest 单元测试（沙箱隔离，不碰真实 HOME）

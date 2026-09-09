@@ -7,9 +7,9 @@
     "url": "git+https://github.com/tec-explorer/skillpot.git"
   },
   "bugs": {
-    "url": "https://github.com/zhangmingyong/skillpot/issues"
+    "url": "https://github.com/tec-explorer/skillpot/issues"
   },
-  "homepage": "https://github.com/zhangmingyong/skillpot#readme",
+  "homepage": "https://github.com/tec-explorer/skillpot#readme",
   "bin": {
     "skillpot": "dist/cli.mjs",
     "spot": "dist/cli.mjs"
