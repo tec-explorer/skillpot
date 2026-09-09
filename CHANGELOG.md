@@ -3,6 +3,11 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.11.1] - 2026-09-09
+
+### Fixed
+- 项目元数据修正：`package.json` 的 `bugs`/`homepage` 与 `CONTRIBUTING.md` 的克隆地址统一指向新组织 `tec-explorer/skillpot`
+
 ## [0.11.0] - 2026-09-04
 
 ### Added
