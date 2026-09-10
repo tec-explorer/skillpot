@@ -20,26 +20,28 @@
 ## 特性
 
 - **一处安装**：中央仓库 `~/.skillpot/skills/` 存唯一真身，自带 checksum 与 lockfile
-- **按 Agent 开关**：`config.yaml` 里的 skill × Agent 矩阵 + symlink 同步引擎；TUI 矩阵可视化切换，或 `skillpot gui` 浏览器控制台
+- **按目标开关**：`config.yaml` 里的 skill × 目标矩阵 + symlink 同步引擎；TUI 矩阵可视化切换，或 `skillpot gui` 浏览器控制台
+- **通用广播列**：跨工具共享目录 `~/.agents/skills` 作为一等矩阵列（`broadcast`），与各 Agent 列并列显式开放
 - **市场**：内置 Anthropic 官方技能库，支持自定义 git 技能源，浏览并一键安装
 - **一处更新**：git 来源 skill 的 `update / --check`，原位替换、无需重连
 - **收编（adopt）**：一键迁移散落在各 Agent 目录里的既有 skill，拷贝 / 移动两种模式
 - **安全**：`lint` 安装前扫描（frontmatter 完整性 + 脚本高危模式）、默认最小暴露、台账化安全卸载
 - **MCP bridge**：任何支持 MCP 的 Agent 都能消费中央仓库，同样受开关矩阵约束
 - **doctor 体检**：断链 / 漂移 / 同名遮蔽 / 孤儿链接，`--fix` 自动修复
+- **验证等级如实标注**：每个目标标出 实测 / 文档确认 / 未验证，不把未验证的能力呈现为已确认
 
 ## 工作原理
 
 ```
 ~/.skillpot/
 ├── skills/<name>/SKILL.md   # 中央仓库：唯一真身（自包含，symlink 已解引用）
-├── config.yaml              # 来源/版本/校验和 + skill×Agent 开关矩阵
+├── config.yaml              # 来源/版本/校验和 + skill×目标 开关矩阵
 ├── state.json               # 本工具创建的链接台账（卸载只动台账内文件）
-├── skillspot.lock.json      # 机器可读快照（团队共享/审计用）
+├── skillpot.lock.json       # 机器可读快照（团队共享/审计用）
 └── cache/market/            # 市场源克隆缓存（浅克隆，「刷新」强制更新）
 ```
 
-`enable` 在目标 Agent 的用户级 skills 目录创建指向中央仓库的 **symlink**（Agent 启动扫描目录时即被发现）；`disable` 撤下该 symlink。只动台账内的链接，绝不碰用户自建内容；遇到真实同名目录一律跳过并告警。
+`enable` 在目标目录创建指向中央仓库的 **symlink**（Agent 启动扫描目录时即被发现）；`disable` 撤下该 symlink。只动台账内的链接，绝不碰用户自建内容；遇到真实同名目录一律跳过并告警。矩阵的列有两类：具体 Agent（`claude-code`、`codex`…）与**通用广播**渠道（`broadcast` → `~/.agents/skills`），后者对所有支持该约定的 Agent 可见、无法按 Agent 单独关闭，因此需显式开放、不含在 `--for all` 中。
 
 ## 快速开始
 
@@ -65,10 +67,12 @@ skillpot gui                         # 浏览器控制台：开关矩阵/体检/
 skillpot market                      # 浏览技能源（内置 Anthropic 官方库，可加自定义源）
 skillpot add ~/path/to/my-skill      # 安装新 skill（默认不对任何 Agent 开放）
 skillpot enable my-skill --for claude-code,zcode
+skillpot enable my-skill --for broadcast   # 通用广播：放进 ~/.agents/skills（粗粒度）
 skillpot doctor                      # 体检：断链/漂移/同名冲突
 ```
 
 > Agent 在会话启动时扫描 skill 目录，enable/disable 后重启示例会话生效。
+> `--for all` 展开为**全部具体 Agent**，不含通用广播列——广播只该显式开放。
 
 **安装 skill 来源**：`skillpot add https://github.com/owner/skills.git#subdir`（浅克隆，`#` 后定位子目录；也支持 `file://` 本地仓库）。
 
@@ -79,10 +83,10 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | 命令 | 说明 |
 |---|---|
 | `init` | 初始化中央仓库 + Agent 检测（空仓库时触发收编提醒） |
-| `agents [--json]` | 检测本机编程 Agent（PATH 二进制 + 配置目录指纹） |
+| `agents [--json]` | 检测本机编程 Agent（PATH 二进制 + 配置目录指纹）与各目标验证等级 |
 | `add <dir\|git[#subdir]> [-n 名字]` | 安装 skill（自动 lint） |
-| `list [-a agent]` | 已装 skill 清单与开放状态 / 某 Agent 的可见列表 |
-| `enable <skill> -f a,b\|all` | 开放（建 symlink） |
+| `list [-a agent\|broadcast]` | 已装 skill 清单与开放状态 / 某目标的可见列表 |
+| `enable <skill> -f a,b\|all` | 开放（建 symlink）；`broadcast` 为通用广播列，`all` 不含它 |
 | `disable <skill> -f a,b\|all` | 关闭（撤 symlink） |
 | `adopt [--from agents] [-f agents] [--move] [--dry-run]` | 收编已有 skill；`--move` 移动模式 |
 | `remove <skill>` | 卸载（撤下所有链接 + 删除文件） |
@@ -99,21 +103,37 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 
 ## 支持的 Agent
 
-| Agent | 用户级 skills 目录 | 验证依据 |
-|---|---|---|
-| Claude Code | `~/.claude/skills` | live 实测（symlink 探针经 `claude -p` 确认） |
-| ZCode | `~/.zcode/skills` | 官方配置文档 |
-| Codex CLI | `~/.codex/skills` | 同规范样例确认（`.system` 内置 skill） |
-| OpenCode | `~/.config/opencode/skill` | 官方文档，待实机确认 |
-| Gemini CLI | `~/.gemini/skills` | 官方支持 Agent Skills，待实机确认 |
-| DeepSeek CLI (dsh) | `~/.dsh/skills` | 目录约定同 Claude，symlink 发现任待实机确认 |
-| Cursor | `~/.cursor/skills` | 官方 create-skill 技能明示路径，symlink 发现任待实机确认 |
+| Agent | 用户级 skills 目录 | 验证等级 | 依据 |
+|---|---|---|---|
+| Claude Code | `~/.claude/skills` | **实测** | symlink 探针经 `claude -p` 确认可被发现 |
+| ZCode | `~/.zcode/skills` | 文档确认 | 官方配置文档确认用户级发现路径 |
+| Codex CLI | `~/.codex/skills` | 文档确认 | 同规范样例（`.system` 内置 skill） |
+| OpenCode | `~/.config/opencode/skill` | 未验证 | 官方文档路径，待实机确认 |
+| Gemini CLI | `~/.gemini/skills` | 未验证 | 官方支持 Agent Skills，待实机确认 |
+| DeepSeek CLI (dsh) | `~/.dsh/skills` | 未验证 | 目录约定同 Claude；该目录的消费方待确认 |
+| Cursor | `~/.cursor/skills` | 未验证 | 官方 create-skill 技能明示路径，链接发现待实测 |
+| Amp | `~/.config/amp/skills` | 未验证 | 官方文档，链接发现待实测 |
+| **通用广播**（channel） | `~/.agents/skills` | 文档确认 | 跨工具共享约定（Vercel skills CLI 的 universal 位置，ZCode/Amp/Codex/OpenCode 等原生读取） |
+
+**验证等级口径**以"该 Agent 能否发现 SkillPot 建立的链接"为准：`实测` = 真机确认过；`文档确认` = 路径有官方依据、链接发现未实测；`未验证` = 路径本身待确认。`skillpot agents` 会逐项打印等级与依据——`enable` 后 skill 静默不生效是最伤用户的失败模式，因此这里宁可低报。口径细则见 [docs/design/agent-adapters.md](./docs/design/agent-adapters.md)。
 
 其他支持 MCP 的 Agent（Qoder、私有 harness…）可走 [MCP bridge](#mcp-bridgec-档兜底)。新增适配器方法见 [docs/design/agent-adapters.md](./docs/design/agent-adapters.md)。
 
 ## MCP bridge（C 档兜底）
 
-无原生 skills 目录的 Agent 可通过 MCP 消费中央仓库：把 `skillpot mcp`（stdio）注册为其 MCP server，即获得 `skillpot_list / skillpot_read / skillpot_search` 三个工具；用 `SKILLPOT_AGENT=<agentId>` 环境变量或 `agent` 参数按开关矩阵过滤，`disable` 对 MCP 通道同样即时生效。设计说明见 [docs/design/mcp-bridge.md](./docs/design/mcp-bridge.md)。
+无原生 skills 目录的 Agent 可通过 MCP 消费中央仓库：把 `skillpot mcp`（stdio）注册为其 MCP server，即获得 `skillpot_list / skillpot_read / skillpot_search` 三个工具。
+
+**在 Agent 的 MCP 配置里声明身份**是推荐做法：
+
+```jsonc
+{ "command": "skillpot", "args": ["mcp"], "env": { "SKILLPOT_AGENT": "codex" } }
+```
+
+- 声明了 `SKILLPOT_AGENT`，服务端就**以它为准**，`tools/call` 里的 `agent` 参数会被忽略——否则消费方可以自称任意 Agent 绕过矩阵；未声明时才退回用参数（兼容人工调试）。
+- 三个工具都受矩阵约束：`list` 只列、`search` 只搜、`read` 只读**对当前身份开放**的 skill；`disable` 对 MCP 通道即时生效。
+- 通用广播列不会自动让每个 Agent 可见：这里按 `skill × agent` 单元格判定。
+
+设计说明见 [docs/design/mcp-bridge.md](./docs/design/mcp-bridge.md)。
 
 ## 团队协作
 
@@ -139,10 +159,13 @@ skillpot sync           # 按 ./.skillpot.yaml 对齐；--dry-run 先预览
 
 Skill 是注入模型上下文的指令 + 可携带可执行脚本。SkillPot 的默认安全姿态：
 
-- `add` / `adopt` 之后**不开放给任何 Agent**，由用户显式选择
-- 安装时自动 `lint`：frontmatter 完整性、脚本高危模式（`rm -rf`、`curl|sh`、`sudo`…）
+- `add` / `adopt` 之后**不开放给任何目标**，由用户显式选择
+- 安装时自动 `lint`：frontmatter 完整性、脚本高危模式（`rm -rf`、`curl|sh`、`sudo`、凭据读取、外发数据…）
 - 卸载/禁用只动 `state.json` 台账内的链接，绝不触碰用户自建内容
 - 拷贝解引用 symlink，仓库自包含，不依赖来源机器的链接目标
+- 通用广播列**不并入 `--for all`**：它写进跨工具共享目录、对所有支持该约定的 Agent 可见且无法按 Agent 单独撤销，只能显式开放（TUI 整行开关跳过该列，GUI 批量操作带二次确认）
+- MCP bridge 的身份以 `SKILLPOT_AGENT` 环境变量为准，tool 参数无法放宽 `read/list/search` 的可见范围
+- 写入原子化（临时文件 + rename）并对"读 config → 改 → 写回"加进程间互斥锁，避免并发 `enable` 互相覆盖台账
 - Web 控制台仅监听 `127.0.0.1`，写操作需携带启动时生成的随机 token（`--host 0.0.0.0` 局域网模式下读取也强制认证）
 
 漏洞报告请走 [SECURITY.md](./SECURITY.md)，勿用公开 Issue。
@@ -152,11 +175,17 @@ Skill 是注入模型上下文的指令 + 可携带可执行脚本。SkillPot �
 **为什么用 symlink 而不是复制到每个 Agent？**
 复制会产生 56 份副本，更新与关闭都不可控。symlink 只有一份真身：`disable` 即撤链接，`update` 原位替换即全部生效。
 
+**为什么 `--for all` 不包含通用广播（`~/.agents/skills`）？**
+因为它是粗粒度渠道：写进去之后，同时读自己目录和共享目录的 Agent 仍然能看见它，`disable --for <agent>` 撤不掉——矩阵会变成"显示已关闭、实际可见"。所以 `all` 只展开具体 Agent，要广播就显式写 `skillpot enable <skill> --for broadcast`。
+
+**为什么某些 Agent 标着"未验证"？**
+因为"官方文档写了这个路径"和"这个 Agent 真的会跟随我们建的 symlink"是两回事。标 `未验证` 表示后者还没人实测过，`enable` 后可能静默不生效。`skillpot agents` 会打印每个目标的等级与依据；实机验证过请来提 PR 把它升成 `实测`。
+
 **Windows 支持吗？**
 符号链接在 Windows 需要开发者模式或管理员权限，目前未测试，欢迎 PR。
 
 **和 skill registry（skills.sh 等）是什么关系？**
-Registry 解决"从哪找 skill"，SkillPot 解决"装到哪、给谁用、怎么停、怎么更新"——管理层。0.6.0 起 SkillPot 内置 Anthropic 官方技能库并支持自定义 git 技能源（GUI「市场」页 / `skillpot source`、`skillpot market`）；skills.sh 这类在线目录的可搜索接入在规划中，当前可把目录站看到的 skill 用 `owner/repo#子目录` 方式直接安装。
+Registry 解决"从哪找 skill"，SkillPot 解决"装到哪、给谁用、怎么停、怎么更新"——管理层。0.6.0 起 SkillPot 内置 Anthropic 官方技能库并支持自定义 git 技能源（GUI「市场」页 / `skillpot source`、`skillpot market`）；0.11.0 起可用 `skillpot search` / `install-search` 直接对接 skills.sh 目录，也可把目录站看到的 skill 用 `owner/repo#子目录` 方式安装。
 
 **安装后 `skillpot` 命令不存在，或版本不对？**
 多半是全局/本地装混了：`npm install` 少了 `-g` 会把包装进当前目录的 `node_modules`，PATH 上并没有命令。用 `npm i -g @tec-explorer/skillpot` 全局安装；`npm ls -g @tec-explorer/skillpot` 查全局版本，`which skillpot` 确认命令来源。

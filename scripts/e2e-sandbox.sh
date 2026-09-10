@@ -109,8 +109,28 @@ git -C "$REPO" -c user.email=t@t -c user.name=t commit -q -m v2
 $CLI update git-skill | grep -q "已更新"
 grep -q "# v2" "$SKILLPOT_HOME/skills/git-skill/SKILL.md"
 $CLI update --check | grep -q "已是最新"
-test -f "$SKILLPOT_HOME/skillspot.lock.json"
-echo "ok: update 原位替换内容，lockfile 已生成"
+test -f "$SKILLPOT_HOME/skillpot.lock.json"
+test ! -f "$SKILLPOT_HOME/skillspot.lock.json"   # 0.11 的旧名会被清理
+echo "ok: update 原位替换内容，lockfile 已生成（skillpot.lock.json）"
+
+echo "== 通用广播列 =="
+$CLI enable zskill --for broadcast | grep -q "通用广播"
+test -L "$SKILLPOT_AGENT_HOME/.agents/skills/zskill"
+test "$(readlink "$SKILLPOT_AGENT_HOME/.agents/skills/zskill")" = "$SKILLPOT_HOME/skills/zskill"
+$CLI list --agent broadcast | grep -q zskill
+$CLI list | grep zskill | grep -q broadcast
+$CLI tui --once | grep -q "通用广播"
+echo "ok: --for broadcast 落到 ~/.agents/skills 且进矩阵/列表"
+
+# all 不含通用广播：整行开放后广播列之外的目标都被打开，广播本身不受影响
+$CLI disable zskill --for all > /dev/null
+test ! -e "$SKILLPOT_AGENT_HOME/.zcode/skills/zskill"
+test -L "$SKILLPOT_AGENT_HOME/.agents/skills/zskill"
+echo "ok: --for all 不含通用广播（disable all 之后广播仍在）"
+
+$CLI disable zskill --for broadcast > /dev/null
+test ! -e "$SKILLPOT_AGENT_HOME/.agents/skills/zskill"
+echo "ok: 广播可撤下"
 
 echo "== mcp bridge =="
 MCP_OUT="$(printf '%s\n%s\n%s\n' \
@@ -127,11 +147,31 @@ MCP_CALL="$(printf '%s\n%s\n%s\n' \
 echo "$MCP_CALL" | grep 'legacy-skill' >/dev/null && echo "ok: gemini-cli 可见 legacy-skill（开关矩阵生效）"
 echo "$MCP_CALL" | grep '(no skills)' >/dev/null && echo "ok: codex 被过滤（不可见）"
 
+# 声明了 SKILLPOT_AGENT 时，调用方传的 agent 参数必须被忽略
+MCP_ENV="$(printf '%s\n%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"skillpot_list","arguments":{"agent":"gemini-cli"}}}' \
+  | SKILLPOT_AGENT=codex $CLI mcp 2>/dev/null)"
+echo "$MCP_ENV" | grep '(no skills)' >/dev/null && echo "ok: SKILLPOT_AGENT 优先，参数不可放宽矩阵"
+
+# read 也受矩阵约束：codex 未开放 → 拒绝读取
+MCP_READ="$(printf '%s\n%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"skillpot_read","arguments":{"skill":"legacy-skill"}}}' \
+  | SKILLPOT_AGENT=codex $CLI mcp 2>/dev/null)"
+echo "$MCP_READ" | grep -q '未对 codex 开放' && echo "ok: read 未开放时拒绝（无读取旁路）"
+
 echo "== tui（非 TTY 自动静态输出）=="
 $CLI tui --once | grep -q "legacy-skill"
 $CLI tui --once | grep -q "✓"
 $CLI tui --once | grep -q "已开放"
-echo "ok: 开关矩阵渲染（skill × Agent）"
+echo "ok: 开关矩阵渲染（skill × 目标）"
+
+echo "== agents（验证等级如实标注）=="
+$CLI agents | grep -q "通用广播"
+$CLI agents --json | grep -q '"verify": "unverified"'
+$CLI agents --json | grep -q '"verify": "live"'
+echo "ok: 未验证的 Agent 未被呈现为已确认"
 
 echo "== doctor（收尾体检）=="
 $CLI doctor | grep -q "体检通过"

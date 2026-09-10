@@ -7,6 +7,7 @@ import { loadConfig, saveConfig } from './config';
 import { installFromLocal } from './store';
 import { enableSkill } from './sync';
 import { sanitizeSkillName } from '../util/frontmatter';
+import { withLockSync } from '../util/fsx';
 
 export type AdoptStatus =
   | 'imported'
@@ -88,10 +89,17 @@ export interface AdoptOptions {
 /**
  * 收编：把各 Agent 目录下已有的 skill 拷贝进中央仓库并登记。
  * - 本工具管理的 symlink、同名冲突（非 move）、外部 symlink、非法目录一律跳过并报告；
- * - move 模式在内容安全落库后才替换原目录，且分两阶段执行（先统一落盘 config，再建链接）。
+ * - move 模式在内容安全落库后才替换原目录，且分两阶段执行（先统一落盘 config，再建链接）；
+ * - 整个导入过程持锁：两个进程同时收编会互相覆盖 config 与本工具的链接台账。
  */
 export function adoptSkills(opts: AdoptOptions = {}): AdoptReport {
-  const agentIds = opts.from ?? detectAll().filter((r) => r.installed).map((r) => r.id);
+  return withLockSync(() => adoptUnlocked(opts));
+}
+
+function adoptUnlocked(opts: AdoptOptions = {}): AdoptReport {
+  // 缺省只扫描具体 Agent：~/.agents/skills 是共享广播目录，不该被默认当作"待收编来源"
+  const agentIds =
+    opts.from ?? detectAll().filter((r) => r.installed && r.kind !== 'channel').map((r) => r.id);
   for (const id of agentIds) {
     if (!getAgent(id)) throw new Error(`未知 agent '${id}'`);
   }

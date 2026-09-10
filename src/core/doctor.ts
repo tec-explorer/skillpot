@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { agentHome, skillDir, storeDir } from '../paths';
 import { loadConfig, loadState, saveState } from './config';
+import { isExposed } from './expose';
 import { enableSkill, disableSkill } from './sync';
 import { AGENTS } from '../agents/registry';
 import { Issue, SkillPotState } from '../types';
+import { withLockSync } from '../util/fsx';
 
 /**
  * 体检：config <-> 中央仓库 <-> 各 Agent 目录三方一致性。
@@ -119,7 +121,7 @@ export function runDoctor(): Issue[] {
     for (const agent of AGENTS) {
       const target = path.join(agent.skillsDir(home), name);
       const exposed = fs.existsSync(target);
-      const wanted = entry.expose[agent.id] === true;
+      const wanted = isExposed(entry, state, name, agent.id);
       if (wanted && !exposed) {
         issues.push({
           level: 'warn',
@@ -141,53 +143,57 @@ export function runDoctor(): Issue[] {
 
 /** 自动修复：断链台账清理 + expose 漂移重同步；adopt 类问题需人工决定，仅保留提示 */
 export function fixDoctor(): { fixed: string[]; remaining: Issue[] } {
-  const fixed: string[] = [];
-  const state = loadState();
-  state.links = state.links.filter((l) => {
-    let ok = false;
-    try {
-      if (l.kind === 'copy') {
-        ok = fs.existsSync(l.link_path) && fs.lstatSync(l.link_path).isDirectory();
-      } else {
-        ok = fs.existsSync(l.link_path) && fs.lstatSync(l.link_path).isSymbolicLink();
+  return withLockSync(() => {
+    const fixed: string[] = [];
+    const state = loadState();
+    state.links = state.links.filter((l) => {
+      let ok = false;
+      try {
+        if (l.kind === 'copy') {
+          ok = fs.existsSync(l.link_path) && fs.lstatSync(l.link_path).isDirectory();
+        } else {
+          ok = fs.existsSync(l.link_path) && fs.lstatSync(l.link_path).isSymbolicLink();
+        }
+      } catch {
+        ok = false;
       }
-    } catch {
-      ok = false;
+      if (!ok) {
+        fixed.push(`清理断链台账：${l.link_path}`);
+        return false;
+      }
+      return true;
+    });
+    saveState(state);
+
+    const config = loadConfig();
+    for (const [name, entry] of Object.entries(config.skills)) {
+      if (!fs.existsSync(path.join(skillDir(name), 'SKILL.md'))) continue;
+      for (const agent of AGENTS) {
+        const target = path.join(agent.skillsDir(agentHome()), name);
+        // 每轮重读台账：上面的修复会改动台账，用陈旧快照会误判广播列
+        const cur = loadState();
+        const exposed = fs.existsSync(target);
+        const wanted = isExposed(entry, cur, name, agent.id);
+        if (wanted && !exposed) {
+          try {
+            enableSkill(name, [agent.id]);
+            fixed.push(`重同步 enable ${name} @ ${agent.id}`);
+          } catch {
+            /* 保持问题项可见 */
+          }
+        } else if (!wanted && exposed && isOurSymlink(target, cur, name, agent.id)) {
+          try {
+            disableSkill(name, [agent.id]);
+            fixed.push(`重同步 disable ${name} @ ${agent.id}`);
+          } catch {
+            /* 保持问题项可见 */
+          }
+        }
+      }
     }
-    if (!ok) {
-      fixed.push(`清理断链台账：${l.link_path}`);
-      return false;
-    }
-    return true;
+
+    return { fixed, remaining: runDoctor() };
   });
-  saveState(state);
-
-  const config = loadConfig();
-  for (const [name, entry] of Object.entries(config.skills)) {
-    if (!fs.existsSync(path.join(skillDir(name), 'SKILL.md'))) continue;
-    for (const agent of AGENTS) {
-      const target = path.join(agent.skillsDir(agentHome()), name);
-      const exposed = fs.existsSync(target);
-      const wanted = entry.expose[agent.id] === true;
-      if (wanted && !exposed) {
-        try {
-          enableSkill(name, [agent.id]);
-          fixed.push(`重同步 enable ${name} @ ${agent.id}`);
-        } catch {
-          /* 保持问题项可见 */
-        }
-      } else if (!wanted && exposed && isOurSymlink(target, loadState(), name, agent.id)) {
-        try {
-          disableSkill(name, [agent.id]);
-          fixed.push(`重同步 disable ${name} @ ${agent.id}`);
-        } catch {
-          /* 保持问题项可见 */
-        }
-      }
-    }
-  }
-
-  return { fixed, remaining: runDoctor() };
 }
 
 function isOurSymlink(target: string, state: SkillPotState, skill: string, agentId: string): boolean {

@@ -200,6 +200,15 @@ body {
   color: var(--dim);
 }
 
+/* 通用广播列（跨工具共享目录）：粗粒度渠道，与具体 Agent 列区分开 */
+.matrix .agent-channel {
+  background: #fff8e8;
+}
+
+.matrix .agent-channel .dim {
+  font-weight: 400;
+}
+
 .cell {
   cursor: pointer;
   font-size: 16px;

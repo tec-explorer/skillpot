@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api';
-import { CellState, StateResp, ToggleResp } from '../types';
+import { CellState, StateResp, ToggleResp, VERIFY_LABEL } from '../types';
 import { Toast } from '../App';
 
 interface Props {
@@ -76,7 +76,12 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
   const bulk = async (agentId: string, enable: boolean) => {
     if (busy) return;
     const verb = enable ? '开放' : '关闭';
-    if (!window.confirm(`确认对该 Agent ${verb}全部 skill？`)) return;
+    const target = matrix.agents.find((a) => a.id === agentId);
+    const scope =
+      target?.kind === 'channel'
+        ? '\n\n注意：这是通用广播列（~/.agents/skills），所有支持该约定的 Agent 都可见，包含未检测到的；事后无法按 Agent 单独关闭。'
+        : '';
+    if (!window.confirm(`确认对该目标 ${verb}全部 skill？${scope}`)) return;
     setBusy(`bulk:${agentId}`);
     try {
       const r = await api<{ changed: string[]; skipped: { skill: string; reason: string }[] }>(
@@ -160,9 +165,25 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           <tr>
             <th className="skill-col">Skill</th>
             {matrix.agents.map((a) => (
-              <th key={a.id} className={a.installed ? '' : 'agent-off'} title={a.skillsDir}>
-                <div>{a.name}</div>
-                {!a.installed && <span className="dim">（未检测到）</span>}
+              <th
+                key={a.id}
+                className={[
+                  a.installed ? '' : 'agent-off',
+                  a.kind === 'channel' ? 'agent-channel' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                title={`${a.skillsDir}（验证等级：${VERIFY_LABEL[a.verify]}）`}
+              >
+                <div>
+                  {a.name}
+                  {a.verify === 'unverified' && <span className="dim">（未验证）</span>}
+                </div>
+                {a.kind === 'channel' ? (
+                  <span className="dim">（共享目录·粗粒度）</span>
+                ) : (
+                  !a.installed && <span className="dim">（未检测到）</span>
+                )}
                 <span className="col-bulk">
                   <button
                     className="bulk-btn"

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBinary, makeSandbox } from './util';
 import { detectAgent } from '../src/agents/detect';
-import { AGENTS, getAgent } from '../src/agents/registry';
+import { AGENTS, allAgentIds, getAgent } from '../src/agents/registry';
 
 let sandbox = '';
 let origPath = '';
@@ -21,8 +21,8 @@ afterEach(() => {
 });
 
 describe('agent detect', () => {
-  it('注册表覆盖八家 Agent', () => {
-    expect(AGENTS.map((a) => a.id)).toEqual([
+  it('注册表覆盖八家 Agent，另有通用广播渠道', () => {
+    expect(AGENTS.filter((a) => a.kind !== 'channel').map((a) => a.id)).toEqual([
       'claude-code',
       'zcode',
       'codex',
@@ -32,6 +32,32 @@ describe('agent detect', () => {
       'cursor',
       'amp',
     ]);
+    expect(AGENTS.filter((a) => a.kind === 'channel').map((a) => a.id)).toEqual(['broadcast']);
+    // all 只展开具体 Agent：广播渠道路径粗粒度，不能混进"对全部 Agent 开放"
+    expect(allAgentIds()).toHaveLength(8);
+    expect(allAgentIds()).not.toContain('broadcast');
+  });
+
+  it('验证等级如实标注：只有实测过的才标 live', () => {
+    expect(getAgent('claude-code')!.verify).toBe('live');
+    expect(detectAgent(getAgent('claude-code')!).verify).toBe('live');
+    // 路径有官方依据但未实机确认链接发现 → 不许标 live
+    expect(detectAgent(getAgent('opencode')!).verify).toBe('unverified');
+    expect(detectAgent(getAgent('amp')!).verify).toBe('unverified');
+    const liveIds = AGENTS.filter((a) => a.verify === 'live').map((a) => a.id);
+    expect(liveIds).toEqual(['claude-code']);
+  });
+
+  it('落地方式取自适配器（不再一律声称 symlink）', () => {
+    expect(detectAgent(getAgent('zcode')!).strategy).toBe('symlink');
+  });
+
+  it('通用广播渠道始终可用，不与"装了哪个 Agent"混淆', () => {
+    const res = detectAgent(getAgent('broadcast')!);
+    expect(res.kind).toBe('channel');
+    expect(res.installed).toBe(true);
+    expect(res.skillsDir).toBe(path.join(sandbox, 'agenthome', '.agents', 'skills'));
+    expect(res.signals).toContain('channel:跨工具共享目录');
   });
 
   it('配置目录指纹可判定安装', () => {

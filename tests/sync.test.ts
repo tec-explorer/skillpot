@@ -29,11 +29,25 @@ function installFixture(): void {
 }
 
 describe('resolveAgentIds', () => {
-  it('all 展开为全部注册 agent', () => {
-    expect(resolveAgentIds('all')).toHaveLength(8);
+  it('all 展开为全部注册 Agent，且不含通用广播渠道', () => {
+    const ids = resolveAgentIds('all');
+    expect(ids).toHaveLength(8);
+    expect(ids).not.toContain('broadcast');
   });
+
+  it('通用广播渠道需显式指定（粗粒度，不能混入 all）', () => {
+    expect(resolveAgentIds('broadcast')).toEqual(['broadcast']);
+    expect(resolveAgentIds('claude-code,broadcast')).toEqual(['claude-code', 'broadcast']);
+    // 显式列出的渠道与 all 可共存
+    expect(resolveAgentIds('all,broadcast')).toContain('broadcast');
+  });
+
+  it('重复 id 去重', () => {
+    expect(resolveAgentIds('codex,codex')).toEqual(['codex']);
+  });
+
   it('未知 id 报错', () => {
-    expect(() => resolveAgentIds('nope')).toThrow(/未知 agent/);
+    expect(() => resolveAgentIds('nope')).toThrow(/未知目标/);
   });
 });
 
@@ -50,6 +64,25 @@ describe('enable/disable lifecycle', () => {
 
     expect(loadConfig().skills['demo-skill'].expose['claude-code']).toBe(true);
     expect(loadState().links).toHaveLength(2);
+  });
+
+  it('单个目标写失败不拖垮其余目标，且台账照常落盘', () => {
+    installFixture();
+    // 把 claude-code 的 skills 位置占成普通文件 → 该目标建链接必然失败
+    fs.mkdirSync(path.join(agentHome(), '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(agentHome(), '.claude', 'skills'), 'not a directory');
+
+    const res = enableSkill('demo-skill', ['claude-code', 'codex']);
+    expect(res.linked).toEqual(['codex']);
+    expect(res.skipped).toHaveLength(1);
+    expect(res.skipped[0].agent).toBe('claude-code');
+    expect(res.skipped[0].reason).toContain('建立链接失败');
+
+    // 关键：失败目标不会让成功目标的台账/expose 一起丢掉
+    const links = loadState().links;
+    expect(links).toHaveLength(1);
+    expect(links[0].agent).toBe('codex');
+    expect(loadConfig().skills['demo-skill'].expose['codex']).toBe(true);
   });
 
   it('重复 enable 幂等', () => {

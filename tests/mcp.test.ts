@@ -1,14 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { makeSandbox } from './util';
 import { initStore, loadConfig, saveConfig } from '../src/core/config';
 import { installFromLocal } from '../src/core/store';
 import { enableSkill } from '../src/core/sync';
-import { handleMcpMessage } from '../src/core/mcp-server';
+import { effectiveAgentId, handleMcpMessage } from '../src/core/mcp-server';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/demo-skill', import.meta.url));
 
 beforeEach(() => {
+  delete process.env.SKILLPOT_AGENT;
   makeSandbox();
   initStore();
   installFromLocal(FIXTURE);
@@ -20,6 +21,10 @@ beforeEach(() => {
     expose: { 'claude-code': true },
   };
   saveConfig(config);
+});
+
+afterEach(() => {
+  delete process.env.SKILLPOT_AGENT;
 });
 
 function call(method: string, params?: object): any {
@@ -73,5 +78,53 @@ describe('mcp-server handler', () => {
   it('未知方法与坏 JSON 返回 JSON-RPC 错误', () => {
     expect(call('nope').error.code).toBe(-32601);
     expect(JSON.parse(handleMcpMessage('not-json')!).error.code).toBe(-32700);
+  });
+});
+
+describe('MCP 身份声明与矩阵约束', () => {
+  it('SKILLPOT_AGENT 优先，且不可被 tool 参数放宽/改写', () => {
+    expect(effectiveAgentId(undefined)).toBeUndefined();
+    expect(effectiveAgentId('codex')).toBe('codex');
+
+    process.env.SKILLPOT_AGENT = 'gemini-cli';
+    // demo-skill 只对 claude-code 开放
+    expect(call('tools/call', { name: 'skillpot_list', arguments: {} }).result.content[0].text).toBe(
+      '(no skills)',
+    );
+    // 自称 claude-code 也无效：身份以环境变量为准（否则消费方可绕过矩阵）
+    expect(
+      call('tools/call', { name: 'skillpot_list', arguments: { agent: 'claude-code' } }).result
+        .content[0].text,
+    ).toBe('(no skills)');
+  });
+
+  it('skillpot_read 同样受矩阵约束：未对当前身份开放则拒绝读取', () => {
+    process.env.SKILLPOT_AGENT = 'gemini-cli';
+    const res = call('tools/call', { name: 'skillpot_read', arguments: { skill: 'demo-skill' } });
+    expect(res.result.isError).toBe(true);
+    expect(res.result.content[0].text).toContain('未对 gemini-cli 开放');
+
+    process.env.SKILLPOT_AGENT = 'claude-code';
+    const ok = call('tools/call', { name: 'skillpot_read', arguments: { skill: 'demo-skill' } });
+    expect(ok.result.isError).toBe(false);
+    expect(ok.result.content[0].text).toContain('# Demo Skill');
+  });
+
+  it('skillpot_search 只返回对当前身份开放的 skill', () => {
+    process.env.SKILLPOT_AGENT = 'gemini-cli';
+    const res = call('tools/call', { name: 'skillpot_search', arguments: { query: 'fixture' } });
+    expect(res.result.content[0].text).toBe('(no match)');
+
+    process.env.SKILLPOT_AGENT = 'claude-code';
+    const hit = call('tools/call', { name: 'skillpot_search', arguments: { query: 'fixture' } });
+    expect(hit.result.content[0].text).toContain('demo-skill');
+  });
+
+  it('通用广播列不自动等于"每个 Agent 都可见"（仍按 skill×agent 单元格判定）', () => {
+    enableSkill('demo-skill', ['broadcast']);
+    process.env.SKILLPOT_AGENT = 'gemini-cli';
+    expect(call('tools/call', { name: 'skillpot_list', arguments: {} }).result.content[0].text).toBe(
+      '(no skills)',
+    );
   });
 });

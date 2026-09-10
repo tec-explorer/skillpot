@@ -21,9 +21,9 @@ skillpot init
 ```
 ~/.skillpot/
 ├── skills/<name>/SKILL.md   # 中央仓库:唯一真身(自包含,symlink 已解引用)
-├── config.yaml              # 来源/版本/校验和 + skill×Agent 开关矩阵
+├── config.yaml              # 来源/版本/校验和 + skill×目标 开关矩阵
 ├── state.json               # 链接台账(卸载只动台账内文件)
-└── skillspot.lock.json      # 机器可读快照(团队共享/审计)
+└── skillpot.lock.json       # 机器可读快照(团队共享/审计)
 ```
 
 ## 2. 开关矩阵:一个界面管所有 Agent
@@ -35,11 +35,11 @@ spot tui         # 终端交互版
 
 ### GUI 开关矩阵
 
-矩阵的**行是 skill,列是 Agent**。单元格五种状态:
+矩阵的**行是 skill,列是目标**。目标分两类:**具体 Agent**(`claude-code`、`codex`…),以及最后一个**通用广播**列(跨工具共享目录 `~/.agents/skills`)。单元格五种状态:
 
 | 符号 | 含义 |
 |---|---|
-| ✓(绿) | 已开放:Agent 目录里有指向中央仓库的受管 symlink |
+| ✓(绿) | 已开放:目标目录里有指向中央仓库的受管 symlink |
 | ⚠(黄) | 漂移:config 声明开放,但链接缺失(比如链接被手动删了) |
 | !(黄/红) | 链接状态异常 |
 | ×(红) | 外部同名占用:该位置有个不是 SkillPot 创建的同名条目,点击不生效 |
@@ -47,8 +47,10 @@ spot tui         # 终端交互版
 
 ![GUI 开关矩阵](images/gui-matrix.png)
 
-- **点击单元格**即切换:开放 = 在该 Agent 的 skills 目录创建指向中央仓库的 symlink;关闭 = 撤下。切换后台灯提示结果,**Agent 重启示例会话后生效**。
-- **列头「全开 / 全停」**:对该 Agent 下的全部 skill 一键启停(带确认),批量管理不用逐个点击。
+- **点击单元格**即切换:开放 = 在该目标的目录创建指向中央仓库的 symlink;关闭 = 撤下。切换后台灯提示结果,**Agent 重启示例会话后生效**。
+- **列头「全开 / 全停」**:对该目标下的全部 skill 一键启停(带确认),批量管理不用逐个点击。通用广播列额外提示影响面——它是粗粒度渠道,所有支持该约定的 Agent 都可见,且事后无法按 Agent 单独关闭。
+- **通用广播列**(浅黄底、标注「共享目录·粗粒度」)写的是 `~/.agents/skills`:放进去的 skill 对所有支持该约定的 Agent(Vercel skills CLI 的 universal 位置、ZCode、Amp、Codex、OpenCode…)可见。它**不包含在 `--for all` 里**,只能在这里点开,或用 `skillpot enable <skill> --for broadcast`。
+- 表头标注 `(未验证)` 的列,表示该 Agent 的链接发现路径只有文档依据、没有实机验证过,开放后可能静默不生效。悬停可看目录与验证等级;`skillpot agents` 会打印每个目标的等级与依据。
 - 顶部**搜索框**按名称过滤;**分段筛选**可只看「已开放」或「异常/漂移」的 skill——skill 一多时快速定位。
 - 列表默认每页 20 条,点**「加载更多」**追加;列头灰显 `(未检测到)` 表示本机没装该 Agent(仍可开放,但建议先安装)。
 - 点击 **skill 名**打开详情。
@@ -152,7 +154,17 @@ spot tui
 skillpot mcp
 ```
 
-零依赖 stdio MCP server,提供 `skillpot_list` / `skillpot_read` / `skillpot_search` 三个工具,遵循开关矩阵过滤(用 `SKILLPOT_AGENT=<agentId>` 指定视角)。任何支持 MCP 的 Agent 都能把 SkillPot 当作技能后端。
+零依赖 stdio MCP server,提供 `skillpot_list` / `skillpot_read` / `skillpot_search` 三个工具,遵循开关矩阵过滤。任何支持 MCP 的 Agent 都能把 SkillPot 当作技能后端。
+
+**推荐在 Agent 的 MCP 配置里声明身份**,而不是靠调用时传参:
+
+```jsonc
+{ "command": "skillpot", "args": ["mcp"], "env": { "SKILLPOT_AGENT": "codex" } }
+```
+
+- 声明了 `SKILLPOT_AGENT`,服务端就**以它为准**,`tools/call` 里的 `agent` 参数会被忽略——否则消费方可以自称任意 Agent 绕过矩阵;未声明时才退回用参数(兼容人工调试),启动横幅会提示这一点。
+- 三个工具都受矩阵约束:`read` 只读**对当前身份开放**的 skill(未开放直接拒绝),`search` 只在可见范围内搜。
+- 通用广播列不会自动让每个 Agent 可见:MCP 这里按 `skill × agent` 单元格判定。
 
 ## 10. 团队协作：项目清单一键对齐
 
@@ -177,25 +189,40 @@ skillpot sync --dry-run     # 先预览将对齐的动作
 | 命令 | 说明 |
 |---|---|
 | `skillpot init` | 初始化中央仓库 + Agent 检测 |
-| `skillpot agents [--json]` | 检测本机 Agent 及 skills 目录 |
+| `skillpot agents [--json]` | 检测本机 Agent、skills 目录与各目标验证等级 |
 | `skillpot add <source>` | 安装(本地目录 / git URL#subdir) |
-| `skillpot list [--agent id]` | 列出仓库 skill 与开放状态 |
-| `skillpot enable/disable <skill> --for <agents>` | 开关(agents 支持逗号分隔或 all) |
+| `skillpot list [--agent id\|broadcast]` | 列出仓库 skill 与开放状态 |
+| `skillpot enable/disable <skill> --for <targets>` | 开关(targets 支持逗号分隔、`broadcast` 或 `all`;`all` 不含通用广播) |
+| `skillpot broadcast <skill> [--off]` | 通用广播列的命令糖(= `enable --for broadcast`) |
 | `skillpot remove <skill>` | 卸载 |
 | `skillpot adopt [--move] [--dry-run]` | 收编 |
 | `skillpot lint [skill] [--strict]` | 安全/质量扫描 |
 | `skillpot update [skill] [--check]` | git 来源更新 |
 | `skillpot doctor [--fix]` | 体检与修复 |
+| `skillpot audit [--json]` | 审计各目标实际生效的 skill、来源与被绕过情况 |
 | `skillpot gui [--port] [--host] [--no-open]` | Web 控制台 |
 | `skillpot tui [--once]` | 终端开关矩阵 |
 | `skillpot mcp` | MCP server(stdio) |
 | `skillpot source list/add/remove` | 市场源管理 |
 | `skillpot market [url]` | 浏览源内 skill |
+| `skillpot search <关键词>` / `install-search <id>` | 搜索并安装 skills.sh 目录中的 skill |
 | `skillpot sync [--export] [--dry-run]` | 团队对齐：按项目清单安装/对齐 |
 
-## 12. 支持的 Agent
+## 12. 支持的目标
 
-Claude Code、ZCode、Codex CLI、OpenCode、Gemini CLI、DeepSeek CLI(dsh)、Cursor,共七家。适配器 = 已确认的"用户级 skills 发现路径" + 二进制/目录指纹检测。新增 Agent:只要它扫描某个用户级目录下的 `SKILL.md` 目录,就能以约十行适配器接入(欢迎 PR)。
+**八家 Agent**——Claude Code、ZCode、Codex CLI、OpenCode、Gemini CLI、DeepSeek CLI(dsh)、Cursor、Amp,加上**通用广播渠道**(`~/.agents/skills`)。适配器 = "用户级 skills 发现路径" + 二进制/目录指纹检测。
+
+每个目标都带**验证等级**,如实标注发现路径的确认程度:
+
+| 等级 | 含义 | 当前 |
+|---|---|---|
+| 实测 | 真机确认过该 Agent 能发现 SkillPot 建立的链接 | Claude Code |
+| 文档确认 | 路径有官方依据,链接发现未实测 | ZCode、Codex CLI、通用广播 |
+| 未验证 | 路径本身仍待确认 | OpenCode、Gemini CLI、dsh、Cursor、Amp |
+
+`skillpot agents` 会逐个打印等级与依据。开放后 skill 静默不生效是最伤用户的失败模式,所以这里宁可低报——实机验证过请提 PR 把它升为「实测」。
+
+新增 Agent:只要它扫描某个用户级目录下的 `SKILL.md` 目录,就能以约十行适配器接入(欢迎 PR),步骤见 [docs/design/agent-adapters.md](design/agent-adapters.md)。
 
 ---
 

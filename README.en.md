@@ -17,8 +17,9 @@
 Registries and marketplaces (skills.sh, Anthropic marketplace) answer *"where do I find skills"* — they are the **upstream**. SkillPot answers *"where does it install, who sees it, how do I stop it, how do I update it"* — the **management layer**:
 
 - **One central store** at `~/.skillpot/skills/` — a single source of truth with checksums and a lockfile
-- **Per-agent switch matrix** — `config.yaml` drives a symlink sync engine; flip switches in the GUI, the TUI, or the CLI
-- **8 agents**: Claude Code, ZCode, Codex CLI, OpenCode, Gemini CLI, DeepSeek CLI (dsh), Cursor, Amp
+- **Per-target switch matrix** — `config.yaml` drives a symlink sync engine; flip switches in the GUI, the TUI, or the CLI
+- **8 agents**: Claude Code, ZCode, Codex CLI, OpenCode, Gemini CLI, DeepSeek CLI (dsh), Cursor, Amp — plus the **universal broadcast column** (`~/.agents/skills/`) sitting in the matrix as a first-class target
+- **Honest verification levels** — every target is labelled *live-verified* / *docs-confirmed* / *unverified*, so nothing unproven is presented as working
 - **Doctor**: broken links, drift, shadowed names, orphaned links — `--fix` repairs automatically
 - **Security lint** on install: frontmatter integrity + dangerous script patterns (`rm -rf`, `curl | sh`, credential access, data exfiltration…)
 - **Adopt** existing skills scattered across agent directories (copy or move mode)
@@ -26,7 +27,7 @@ Registries and marketplaces (skills.sh, Anthropic marketplace) answer *"where do
 - **Market**: browse and one-click install from built-in sources — Anthropic, Vercel, Superpowers, Matt Pocock — or any custom git repo; search the skills.sh directory anonymously
 - **Team alignment**: commit a `.skillpot.yaml` manifest, teammates run `skillpot sync` to match it
 - **MCP bridge**: any MCP-capable agent can consume the central store, still filtered by the switch matrix
-- **Broadcast mode**: expose a skill to the cross-tool `~/.agents/skills/` shared directory on demand
+- **Crash- and race-safe state**: atomic writes (temp file + rename) and an inter-process lock around every read-modify-write of config/ledger
 
 ## Quick start
 
@@ -39,8 +40,9 @@ skillpot init                     # create ~/.skillpot and detect installed agen
 skillpot adopt --dry-run          # preview: existing skills found in agent dirs
 skillpot adopt --move             # adopt with move mode (original dir becomes a symlink)
 skillpot gui                      # web console: matrix / doctor / adopt / install / market / maintain / team
-skillpot add ~/demo/my-skill      # install a skill (exposed to no agent by default)
+skillpot add ~/demo/my-skill      # install a skill (exposed to no target by default)
 skillpot enable my-skill --for claude-code,codex
+skillpot enable my-skill --for broadcast   # universal broadcast into ~/.agents/skills
 skillpot doctor                   # consistency check (--fix to repair)
 skillpot search "commit message"  # search the skills.sh directory
 skillpot install-search anthropics/skills/pdf   # install a directory result
@@ -48,19 +50,22 @@ skillpot sync                     # align with a project .skillpot.yaml manifest
 ```
 
 > Agents scan their skill directories at session start — restart a session after enable/disable.
+> `--for all` expands to every concrete agent and **excludes the broadcast column** — broadcasting is opt-in only.
 
 ## How it works
 
 ```
 ~/.skillpot/
 ├── skills/<name>/SKILL.md   # central store: the single copy (self-contained, symlinks dereferenced)
-├── config.yaml              # sources / checksums + the skill × agent switch matrix
+├── config.yaml              # sources / checksums + the skill × target switch matrix
 ├── state.json               # ledger of links this tool created (uninstall only touches these)
-├── skillspot.lock.json      # machine-readable snapshot (team sharing / audit)
+├── skillpot.lock.json       # machine-readable snapshot (team sharing / audit)
 └── cache/market/            # clone cache for market sources
 ```
 
-`enable` creates a symlink from the agent's skills directory into the central store — agents discover it on their next session scan. `disable` removes it. The tool only ever touches paths recorded in its own ledger.
+`enable` creates a symlink from the target directory into the central store — agents discover it on their next session scan. `disable` removes it. The tool only ever touches paths recorded in its own ledger.
+
+Matrix columns come in two kinds: concrete **agents** (`claude-code`, `codex`, …) and the **universal broadcast** channel (`broadcast` → `~/.agents/skills/`). The channel is coarse-grained — every agent honouring that convention sees it and it cannot be switched off per agent — so it is never implied by `--for all`.
 
 Landing strategies per agent: **A** symlink (default) → **B** copy + resync (agents that don't follow symlinks) → **C** MCP bridge (universal fallback).
 
@@ -71,7 +76,14 @@ Landing strategies per agent: **A** symlink (default) → **B** copy + resync (a
 
 ## Security
 
-Skills are instructions injected into model context plus optionally executable scripts. SkillPot's defaults: install lints before exposing, nothing is exposed to any agent until you say so, uninstall/disable only touches ledgered paths, and the web console listens on 127.0.0.1 with token-gated writes. Report vulnerabilities via [SECURITY.md](SECURITY.md).
+Skills are instructions injected into model context plus optionally executable scripts. SkillPot's defaults: install lints before exposing, nothing is exposed to any target until you say so, uninstall/disable only touches ledgered paths, and the web console listens on 127.0.0.1 with token-gated writes.
+
+Two defaults worth knowing about:
+
+- The **universal broadcast column is excluded from `--for all`** — it writes into the cross-tool shared directory, so it can never be undone per agent. The TUI skips that column in its row-wide toggle and the GUI asks for confirmation before bulk-enabling it.
+- The **MCP bridge fixes agent identity via the `SKILLPOT_AGENT` env var**; a `tools/call` argument cannot widen what `list`, `search`, or `read` can see.
+
+Report vulnerabilities via [SECURITY.md](SECURITY.md).
 
 ## Development
 

@@ -38,36 +38,46 @@ function shorten(home: string, p: string): string {
   return p.startsWith(home) ? '~' + p.slice(home.length) : p;
 }
 
-/** 单个 Agent 检测：PATH 二进制 + 配置目录指纹两类信号 */
+/** 单个 Agent 检测：PATH 二进制 + 配置目录指纹两类信号；channel 类目标始终可用 */
 export function detectAgent(adapter: AgentAdapter): AgentDetectResult {
   const home = agentHome();
+  const isChannelTarget = adapter.kind === 'channel';
+  const dir = adapter.skillsDir(home);
   const signals: string[] = [];
-  let installed = false;
+  // 渠道（~/.agents/skills）不是"装没装某个 Agent"，而是始终可写的共享通道
+  let installed = isChannelTarget;
   let version: string | null = null;
 
-  for (const bin of adapter.binaries) {
-    if (findBinary(bin)) {
-      installed = true;
-      signals.push(`binary:${bin}`);
-      version = binaryVersion(bin);
-      break;
+  if (isChannelTarget) {
+    signals.push('channel:跨工具共享目录');
+    if (fs.existsSync(dir)) signals.push(`dir:${shorten(home, dir)}`);
+  } else {
+    for (const bin of adapter.binaries) {
+      if (findBinary(bin)) {
+        installed = true;
+        signals.push(`binary:${bin}`);
+        version = binaryVersion(bin);
+        break;
+      }
     }
-  }
-  for (const fp of adapter.fingerprints(home)) {
-    if (fs.existsSync(fp)) {
-      installed = true;
-      signals.push(`dir:${shorten(home, fp)}`);
+    for (const fp of adapter.fingerprints(home)) {
+      if (fs.existsSync(fp)) {
+        installed = true;
+        signals.push(`dir:${shorten(home, fp)}`);
+      }
     }
   }
 
   return {
     id: adapter.id,
     name: adapter.name,
+    kind: adapter.kind ?? 'agent',
     installed,
     signals,
     version,
-    skillsDir: adapter.skillsDir(home),
-    strategy: 'symlink',
+    skillsDir: dir,
+    strategy: adapter.materialize ?? 'symlink',
+    verify: adapter.verify ?? 'unverified',
     verified: adapter.verified,
     note: adapter.note,
   };

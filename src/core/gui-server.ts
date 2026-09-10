@@ -111,7 +111,8 @@ export async function handleApiRequest(
     if (method === 'GET' && pathname === '/api/adopt') {
       const config = loadConfig();
       const agents = cachedAgents()
-        .filter((a) => a.installed)
+        // 通用广播渠道是共享目录、不是"某家的既有 skill"，不参与收编扫描
+        .filter((a) => a.installed && a.kind !== 'channel')
         .map((a) => ({
           id: a.id,
           name: a.name,

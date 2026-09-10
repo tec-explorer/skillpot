@@ -1,5 +1,6 @@
 import pc from 'picocolors';
-import { loadConfig } from '../core/config';
+import { loadConfig, loadState } from '../core/config';
+import { isExposed } from '../core/expose';
 import { disableSkill, enableSkill } from '../core/sync';
 import { Matrix, MatrixAgent, CellState } from './matrix';
 
@@ -36,7 +37,8 @@ export function toggleCell(skill: string, agentId: string): { ok: boolean; messa
   const config = loadConfig();
   const entry = config.skills[skill];
   if (!entry) return { ok: false, message: `skill 不存在：${skill}` };
-  const wantEnable = entry.expose[agentId] !== true;
+  // 用与矩阵同一套可见性判定取反，避免"台账存在但 expose 未登记"（如 0.11 的广播）被反向操作
+  const wantEnable = !isExposed(entry, loadState(), skill, agentId);
   try {
     const res = wantEnable
       ? enableSkill(skill, [agentId])

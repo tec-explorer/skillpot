@@ -4,11 +4,23 @@ export interface CellState {
   managed: boolean;
 }
 
+export type VerifyLevel = 'live' | 'docs' | 'unverified';
+
+export const VERIFY_LABEL: Record<VerifyLevel, string> = {
+  live: '实测',
+  docs: '文档确认',
+  unverified: '未验证',
+};
+
 export interface MatrixAgent {
   id: string;
   name: string;
+  /** agent = 具体 Agent 目录；channel = 跨工具共享目录（通用广播） */
+  kind: 'agent' | 'channel';
   installed: boolean;
   skillsDir: string;
+  /** 发现路径的确认等级（未验证的在表头如实标注） */
+  verify: VerifyLevel;
 }
 
 export interface Matrix {

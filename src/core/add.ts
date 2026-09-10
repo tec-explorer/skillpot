@@ -4,6 +4,7 @@ import { initStore, loadConfig, saveConfig } from './config';
 import { installFromGit, installFromLocal } from './store';
 import { enableSkill } from './sync';
 import { lintSkill, LintIssue } from './lint';
+import { withLockSync } from '../util/fsx';
 
 /** CLI add 与 GUI 安装表单共用的来源判别：URL / git@ / file:// / .git 后缀视为 git 来源 */
 export function isGitSource(source: string): boolean {
@@ -42,14 +43,18 @@ export async function addSkill(source: string, opts: AddOptions = {}): Promise<A
     ? await installFromGit(source, opts.name)
     : installFromLocal(source, opts.name);
 
-  const config = loadConfig();
-  config.skills[res.name] = {
-    source: isGit ? `git:${source}` : `local:${path.resolve(source)}`,
-    checksum: res.checksum,
-    installed_at: new Date().toISOString(),
-    expose: {},
-  };
-  saveConfig(config);
+  // 克隆/拷贝已完成，登记动作才进临界区（不在锁内做慢 IO）
+  const config = withLockSync(() => {
+    const c = loadConfig();
+    c.skills[res.name] = {
+      source: isGit ? `git:${source}` : `local:${path.resolve(source)}`,
+      checksum: res.checksum,
+      installed_at: new Date().toISOString(),
+      expose: {},
+    };
+    saveConfig(c);
+    return c;
+  });
 
   let enabled: string[] = [];
   let skipped: { agent: string; reason: string }[] = [];

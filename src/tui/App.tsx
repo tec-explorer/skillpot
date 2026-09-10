@@ -40,11 +40,13 @@ export function App({ initial }: { initial: Matrix }) {
       let ok = 0;
       let fail = 0;
       for (const a of m.agents) {
+        // 整行开关不含通用广播列：它是对所有支持该约定的 Agent 可见的粗粒度渠道，只该显式单点开放
+        if (a.kind === 'channel') continue;
         const res = toggleCell(m.skills[row], a.id);
         if (res.ok) ok++;
         else fail++;
       }
-      setMsg(`${m.skills[row]}：${ok} 个 Agent 成功${fail ? `，${fail} 失败` : ''}`);
+      setMsg(`${m.skills[row]}：${ok} 个 Agent 成功${fail ? `，${fail} 失败` : ''}（不含通用广播列）`);
       setM(deriveMatrix());
     }
   });
@@ -70,7 +72,7 @@ export function App({ initial }: { initial: Matrix }) {
       </Text>
       <Box>
         <Text bold dimColor>
-          {'（↑↓←→/hjkl 移动 · 空格 切换 · a 整行开关 · r 刷新 · q 退出）\n'}
+          {'（↑↓←→/hjkl 移动 · 空格 切换 · a 整行开关(不含通用广播) · r 刷新 · q 退出）\n'}
         </Text>
       </Box>
       <Box>

@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { agentHome, skillDir } from '../paths';
+import { skillDir } from '../paths';
 import { detectAll } from '../agents/detect';
 import { loadConfig, loadState } from '../core/config';
+import { isExposed } from '../core/expose';
+import { TargetKind, VerifyLevel } from '../types';
 
 export interface CellState {
   /** 开关矩阵声明：应对该 Agent 开放 */
@@ -16,8 +18,12 @@ export interface CellState {
 export interface MatrixAgent {
   id: string;
   name: string;
+  /** agent = 具体 Agent 目录；channel = 跨工具共享目录（通用广播） */
+  kind: TargetKind;
   installed: boolean;
   skillsDir: string;
+  /** 发现路径的确认等级（未验证的列在 UI 上如实标注） */
+  verify: VerifyLevel;
 }
 
 export interface Matrix {
@@ -38,8 +44,10 @@ export function deriveMatrix(agents?: MatrixAgent[]): Matrix {
     detectAll().map((r) => ({
       id: r.id,
       name: r.name,
+      kind: r.kind,
       installed: r.installed,
       skillsDir: r.skillsDir,
+      verify: r.verify,
     }));
   const cells: Record<string, Record<string, CellState>> = {};
   const ledgeredCopy = (skill: string, agentId: string, target: string): boolean =>
@@ -63,7 +71,7 @@ export function deriveMatrix(agents?: MatrixAgent[]): Matrix {
         /* ENOENT：未暴露 */
       }
       cells[s][a.id] = {
-        enabled: config.skills[s].expose[a.id] === true,
+        enabled: isExposed(config.skills[s], state, s, a.id),
         actual,
         managed,
       };

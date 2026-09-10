@@ -3,6 +3,34 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.12.0] - 2026-09-10
+
+一轮"让产品说的话与做的事一致"的诚实性修复 + 通用广播列升为一等目标。
+
+### Added
+- **通用广播成为矩阵一等列**：跨工具共享目录 `~/.agents/skills` 由 opt-in 侧门（`broadcast` 命令）升为与各 Agent 列同级的 `broadcast` 目标，走同一套 enable/disable/symlink/台账语义；TUI/GUI 矩阵新增该列（GUI 浅黄底 + 「共享目录·粗粒度」标注），CLI 新增 `--for broadcast` 与 `list --agent broadcast`。`skillpot broadcast` 保留为命令糖
+- **适配器验证等级 `verify`**（`live` / `docs` / `unverified`）：`agents` 输出、`agents --json` 与 GUI 矩阵表头如实展示，每级附人类可读依据。当前口径下 8 家 Agent 中仅 Claude Code 为实测
+- `src/core/expose.ts`：矩阵/体检/审计/列表/MCP 共用的可见性判定 `isExposed()` / `exposedTargets()`，杜绝各处口径不一
+- `src/util/fsx.ts`：原子写（临时文件 + fsync + rename）与进程间互斥锁（计数式可重入，陈旧锁可抢占）
+- `tests/persistence.test.ts`：原子写、锁（含重入/超时/陈旧抢占）、配置损坏与 lockfile 更名的回归
+
+### Changed
+- **MCP 身份过滤真正生效**：`SKILLPOT_AGENT` 此前仅出现在文档与启动横幅里、代码从未读取；现在优先于 `tools/call` 的 `agent` 参数，参数无法放宽矩阵。`skillpot_read` / `skillpot_search` 一并受矩阵约束（此前只有 `list` 过滤，存在读取旁路）
+- `--for all` 展开为**全部具体 Agent，不含通用广播**：广播写入后无法按 Agent 单独撤销，混入 `all` 会让矩阵"显示已关闭、实际可见"；`enable`/`disable`/`add`/`adopt`/`install-search` 的 `--for` 说明与调试提示同步更新
+- TUI 整行开关（`a`）跳过通用广播列；GUI 对该列的「全开/全停」二次确认中明确影响面
+- 配置文件改为原子写；`enable`/`disable`/`broadcast`/`uninstall`/`adopt`/`fixDoctor` 及 `add` 的登记段加互斥锁（锁只包裹本地文件临界区，不含 git 克隆）
+- `config.yaml` 损坏改为明确报错（原会静默降级为空配置，导致矩阵凭空消失）；`state.json` 损坏移出为 `state.json.corrupt-<ts>` 留证并降级为空台账
+- `resolveAgentIds` 去重；`list --agent` 不再重复解析参数；未知目标报错文案改为「未知目标」
+- `adopt` 缺省扫描范围只含具体 Agent（不再把共享广播目录当"待收编来源"）
+- lockfile 更名 `skillspot.lock.json` → `skillpot.lock.json`（对齐项目名），写入时清理旧名残留
+- 文档同步：README（中/英）、功能指南（矩阵/MCP/命令速查/支持的目标）、适配器设计（目标类型、验证等级口径、当前适配器表）、MCP bridge 设计（过滤优先级与安全边界）、产品规划 §4 决策记录 + §10 待办批次
+
+### Fixed
+- `enable` 的逐目标循环此前无容错：一个目标写失败（EACCES/EPERM/EEXIST）会跳过末尾落盘，导致已成功目标的台账与 `expose` 一并丢失、随后被体检判为孤儿链接。现逐目标兜错并照常落盘
+- `detect.ts` 对所有适配器硬编码 `strategy: 'symlink'`（copy 档适配器也会被谎报为 symlink），现由 `materialize` 决定
+- 0.11 及更早由 `broadcast` 写入的广播链接只落台账、未登记 `expose`，会被误判为"已关闭但链接残留"，`doctor --fix` 会把用户的广播撤掉。现由 `isExposed()` 以台账回退兼容
+- `sync --export` 导出的清单会丢掉通用广播列（现纳入）；README 支持列表补上 0.11.0 已接入却漏列的 Amp
+
 ## [0.11.1] - 2026-09-09
 
 ### Fixed

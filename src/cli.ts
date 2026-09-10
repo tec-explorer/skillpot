@@ -6,16 +6,17 @@ import { Command } from 'commander';
 import pc from 'picocolors';
 
 import { agentHome, skillDir, storeDir } from './paths';
-import { AGENTS } from './agents/registry';
+import { allTargetIds } from './agents/registry';
 import { detectAll } from './agents/detect';
-import { initStore, loadConfig } from './core/config';
+import { initStore, loadConfig, loadState } from './core/config';
+import { exposedTargets, isExposed } from './core/expose';
 import { storeSkillNames } from './core/store';
 import { addSkill } from './core/add';
 import { uninstallSkill } from './core/uninstall';
 import { addSource, formatInstalls, installFromDirectory, listSources, removeSource, scanSource, searchDirectory } from './core/market';
 import { runAudit } from './core/audit';
 import { exportManifest, SYNC_ACTION_LABELS, syncManifest } from './core/team-sync';
-import { disableSkill, enableSkill, broadcastSkill, resolveAgentIds, SyncResult } from './core/sync';
+import { disableSkill, enableSkill, broadcastSkill, isBroadcastTarget, resolveAgentIds, SyncResult } from './core/sync';
 import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
 import { lintSkill, lintSummary } from './core/lint';
@@ -25,6 +26,7 @@ import { startGuiServer } from './core/gui-server';
 import { runTui } from './tui/index';
 import { renderTable } from './util/table';
 import { VERSION } from './version';
+import { VERIFY_LABELS, VerifyLevel } from './types';
 
 const program = new Command();
 
@@ -45,19 +47,38 @@ function run(fn: (...args: any[]) => unknown): (...args: any[]) => Promise<void>
   };
 }
 
+/** --for 的统一说明：all 只展开具体 Agent；通用广播是粗粒度渠道，需显式写 broadcast */
+const FOR_HELP =
+  '逗号分隔目标 id（agent，或 broadcast=通用广播），或 all（全部 Agent，不含通用广播）';
+
+/** 验证等级着色：实测=绿，文档确认=默认，未验证=黄（不假装已确认） */
+function verifyTag(level: VerifyLevel): string {
+  const label = VERIFY_LABELS[level];
+  if (level === 'live') return pc.green(label);
+  if (level === 'unverified') return pc.yellow(label);
+  return label;
+}
+
 function printAgents(): void {
   const results = detectAll();
   const rows = results.map((r) => [
-    r.name,
-    r.installed ? pc.green('yes') : pc.dim('no'),
+    r.kind === 'channel' ? `${r.name}${pc.dim('（共享目录）')}` : r.name,
+    r.kind === 'channel' ? pc.dim('channel') : r.installed ? pc.green('yes') : pc.dim('no'),
     r.version ?? '-',
     r.skillsDir.replace(agentHome(), '~'),
-    r.installed ? r.verified : '',
+    verifyTag(r.verify),
   ]);
-  console.log(renderTable(['Agent', 'Installed', 'Version', 'Skills目录', '依据'], rows));
+  console.log(renderTable(['Agent', 'Installed', 'Version', 'Skills目录', '验证'], rows));
+  console.log();
   for (const r of results) {
-    if (r.note) console.log(pc.dim(`· ${r.name}: ${r.note}`));
+    console.log(pc.dim(`${r.name}：`) + verifyTag(r.verify) + pc.dim(` — ${r.verified}`));
+    if (r.note) console.log(pc.dim(`  ${r.note}`));
   }
+  console.log(
+    pc.dim(
+      '\n验证等级：实测=实机确认该 Agent 能发现 SkillPot 建立的链接；文档确认=路径有官方依据、链接发现未实测；未验证=路径仍待确认',
+    ),
+  );
 }
 
 function promptConfirm(question: string): Promise<boolean> {
@@ -188,12 +209,13 @@ program
       }
       if (res.enabled.length) {
         console.log(pc.green(`已开放：${res.enabled.join(', ')}`));
+        warnBroadcast(res.enabled);
         for (const s of res.skipped) console.log(pc.yellow(`⚠ ${s.agent}: ${s.reason}`));
       } else {
         console.log(
-          `默认未对任何 Agent 开放。执行 ${pc.cyan(
-            `skillpot enable ${res.name} --for <agents>`,
-          )}（agents: ${AGENTS.map((a) => a.id).join(',')} 或 all）`,
+          `默认未对任何目标开放。执行 ${pc.cyan(
+            `skillpot enable ${res.name} --for <targets>`,
+          )}（可选：${allTargetIds().join(',')}，或 all=全部 Agent）`,
         );
       }
     }),
@@ -202,21 +224,22 @@ program
 program
   .command('list')
   .description('列出中央仓库中的 skill及开放状态')
-  .option('-a, --agent <id>', '只看某个 Agent 的可见列表')
+  .option('-a, --agent <id>', '只看某个目标（agent id 或 broadcast）的可见列表')
   .action(
     run((opts: { agent?: string }) => {
       const config = loadConfig();
+      const state = loadState();
       const names = Object.keys(config.skills).sort();
       const untracked = storeSkillNames().filter((n) => !config.skills[n]);
+      const knownIds = allTargetIds();
 
       if (opts.agent) {
-        const id = resolveAgentIds(opts.agent)[0];
-        if (resolveAgentIds(opts.agent).length !== 1) {
-          throw new Error('list --agent 只接受单个 agent id');
-        }
+        const ids = resolveAgentIds(opts.agent);
+        if (ids.length !== 1) throw new Error('list --agent 只接受单个目标 id');
+        const id = ids[0];
         console.log(pc.bold(`${id} 可见的 skill（来自 SkillPot）：`));
         const rows = names
-          .filter((n) => config.skills[n].expose[id])
+          .filter((n) => isExposed(config.skills[n], state, n, id))
           .map((n) => [n, config.skills[n].source]);
         console.log(rows.length ? renderTable(['Skill', 'Source'], rows) : pc.dim('  （无）'));
         return;
@@ -224,11 +247,7 @@ program
 
       const rows = names.map((n) => {
         const e = config.skills[n];
-        const exposed =
-          Object.entries(e.expose)
-            .filter(([, v]) => v)
-            .map(([k]) => k)
-            .join(',') || '-';
+        const exposed = exposedTargets(e, state, n, knownIds).join(',') || '-';
         return [n, exposed, e.source, e.checksum.slice(0, 15)];
       });
       console.log(renderTable(['Skill', '开放给', 'Source', 'Checksum'], rows));
@@ -240,8 +259,8 @@ program
 
 program
   .command('enable <skill>')
-  .description('对指定 Agent 开放 skill（在 Agent 的 skills目录建立 symlink）')
-  .option('-f, --for <agents>', '逗号分隔 agent id，或 all', 'all')
+  .description('对指定目标开放 skill（在目标的 skills 目录建立 symlink）')
+  .option('-f, --for <targets>', FOR_HELP, 'all')
   .action(
     run((skill: string, opts: { for: string }) => {
       reportSync(enableSkill(skill, resolveAgentIds(opts.for)), '开放');
@@ -250,17 +269,28 @@ program
 
 program
   .command('disable <skill>')
-  .description('对指定 Agent 关闭 skill（移除 symlink）')
-  .option('-f, --for <agents>', '逗号分隔 agent id，或 all', 'all')
+  .description('对指定目标关闭 skill（移除 symlink）')
+  .option('-f, --for <targets>', FOR_HELP, 'all')
   .action(
     run((skill: string, opts: { for: string }) => {
       reportSync(disableSkill(skill, resolveAgentIds(opts.for)), '关闭');
     }),
   );
 
+/** 通用广播是粗粒度渠道，落到这一列时显式告知用户影响面 */
+function warnBroadcast(targets: string[]): void {
+  if (!targets.some((t) => isBroadcastTarget(t))) return;
+  console.log(
+    pc.yellow(
+      '  ⚠ 通用广播：~/.agents/skills 里所有支持该约定的 Agent 都可见，且无法按 Agent 单独关闭',
+    ),
+  );
+}
+
 function reportSync(res: SyncResult, verb: string): void {
   if (res.linked.length) {
     console.log(pc.green(`✔ ${res.skill} 已${verb}：${res.linked.join(', ')}`));
+    warnBroadcast(res.linked);
     console.log(pc.dim('  提示：Agent 在会话启动时扫描 skill 目录，重启示例会话后生效'));
   }
   for (const s of res.skipped) {
@@ -364,7 +394,7 @@ program
   .command('adopt')
   .description('收编各 Agent 目录下已有的 skill 进中央仓库（原目录保留不动；--dry-run 预览）')
   .option('--from <agents>', '只扫描指定 agent（逗号分隔），缺省为全部已检测安装的 agent')
-  .option('-f, --for <agents>', '导入后开放给哪些 agent（逗号分隔或 all；默认不开放）')
+  .option('-f, --for <targets>', `导入后开放给哪些目标（${FOR_HELP}；默认不开放）`)
   .option('--move', '移动模式：导入（或已有同名）后把来源 Agent 目录下的原目录替换为 symlink')
   .option('--dry-run', '只报告将导入的内容，不做任何修改')
   .action(
@@ -639,7 +669,9 @@ program
 
 program
   .command('broadcast <skill>')
-  .description('广播模式：把 skill 放进跨工具共享目录 ~/.agents/skills（粗粒度，所有支持该约定的 Agent 可见）')
+  .description(
+    '通用广播列的命令糖（等价 enable --for broadcast）：放进跨工具共享目录 ~/.agents/skills，对所有支持该约定的 Agent 可见；粗粒度、无法按 Agent 单独关闭',
+  )
   .option('--off', '撤下广播')
   .action(
     run((skill: string, opts: { off?: boolean }) => {
@@ -673,7 +705,7 @@ program
 program
   .command('install-search <id>')
   .description('安装 skills.sh 目录中的 skill（id 形如 owner/repo/slug）')
-  .option('-f, --for <agents>', '安装后开放给指定 Agent（逗号分隔或 all）')
+  .option('-f, --for <targets>', `安装后开放给哪些目标（${FOR_HELP}）`)
   .action(
     run(async (id: string, opts: { for?: string }) => {
       const r = await installFromDirectory(id, {

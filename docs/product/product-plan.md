@@ -87,11 +87,18 @@
 ### C 档：MCP bridge（通用兜底）
 `skillpot mcp` 启动一个 MCP server，提供 `skillpot_list / skillpot_read / skillpot_search` 工具。任何支持 MCP 的 Agent 都能消费；在每家的 MCP 配置里通过环境变量声明自己的身份（`SKILLPOT_AGENT=codex`），server 按开关矩阵**过滤返回**，从而 MCP 通道同样受开关控制。
 
-### 关于 `~/.agents/skills/` 共享目录的特殊处理
-ZCode 等已原生读取 `~/.agents/skills/`（跨工具广播目录）。它天然是"**粗粒度广播**"通道——放进去所有支持该约定的 Agent 都看得见，但**无法按 Agent 单独关闭**。SkillPot 默认不使用它作为仓库（否则破坏精细开关），而是：
-- 默认走"中央仓库 + 各 Agent 自己目录内的 symlink"（精细控制）；
-- `skillpot doctor` 会检测用户手动放入 `~/.agents/skills/` 的 skill，提示收编（`adopt`）或保持广播模式；
-- 提供显式的 `--broadcast` 开关给想用共享目录的用户。
+### 关于 `~/.agents/skills/` 共享目录的定位（0.12.0 决策）
+
+ZCode、Amp、Codex、OpenCode 等已原生读取 `~/.agents/skills/`（跨工具广播目录），Vercel 的 `skills` CLI 也把它作为 universal 目标位置。它天然是"**粗粒度广播**"通道——放进去所有支持该约定的 Agent 都看得见，但**无法按 Agent 单独关闭**。
+
+0.11.0 及更早把它做成 opt-in 的 `skillpot broadcast` 侧门。0.12.0 起**升为矩阵的一等列**（id `broadcast`，展示名「通用广播」），与各 Agent 列走同一套 enable/disable/symlink/台账语义，理由：生态已把它当规范位置，继续藏在侧门里等于逆着标准走。
+
+但**不并入 `--for all`**，因为可撤销性：某 Agent 同时读自己目录与共享目录时，`disable --for <agent>` 撤不掉共享目录里的那一份，`all` 里混入广播会让矩阵"显示已关闭、实际可见"。因此：
+
+- 默认仍走"中央仓库 + 各 Agent 目录内 symlink"（精细控制）；
+- 广播只能显式开放（`--for broadcast`、GUI 点列、TUI 单点；TUI 整行开关跳过该列、GUI 批量操作带二次确认）；
+- `skillpot doctor` 仍会提示用户手动放进共享目录的 skill；
+- 0.11 写入的广播链接（只落台账、未登记 `expose`）由 `isExposed()` 以台账回退兼容，不会被误判为漂移。
 
 ---
 
@@ -230,6 +237,55 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 | **D 生态与触达** | skills.sh 在线目录集成（先解 auth）；英文 README；Homebrew 分发 | 📋 排队 |
 
 优先级：A（定位支柱欠账）→ B（第二目标用户 + 对竞品护城河）→ C/D 穿插。
+
+### 0.12.0 收口：诚实性修复与广播列（2026-09-10）
+
+一轮"让产品说的话与做的事一致"的修复，四项 + 一个决策：
+
+1. **MCP 身份过滤真正落地**：`SKILLPOT_AGENT` 从"文档宣称"变成真实读取，且**优先于 tool 参数**（参数无法放宽矩阵）；`read` / `search` 一并受约束（此前只有 `list` 过滤，等于留了读取旁路）。
+2. **验证等级如实标注**：适配器新增机器可读 `verify`（`live` / `docs` / `unverified`），`agents` 与 GUI 矩阵表头按此展示；去掉 `detect.ts` 对所有 Agent 硬编码 `strategy: 'symlink'` 的做法。结论：8 家 Agent 中仅 Claude Code 为实测。
+3. **持久化健壮性**：配置文件原子写（temp + rename）、`enable`/`disable`/`adopt`/`uninstall`/`fixDoctor`/`add` 加进程间互斥锁（计数式可重入）、`sync` 循环逐目标容错（单个目标写失败不再丢弃整批台账）；`config.yaml` 损坏改为明确报错，`state.json` 损坏移出留证。
+4. **分发元数据**：lockfile 更名 `skillpot.lock.json`（清理旧名 `skillspot.lock.json`）；GitHub topics 与英文 description 待补（需凭据，见下）。
+5. **决策：`~/.agents/skills/` 升为矩阵一等列**（见 §4），但不并入 `--for all`。
+
+### 待办（已排期未开工）
+
+**Phase 2 —— 把安全做成真本事（核心投入，1–2 周）**
+
+- [ ] `lint` 扫描 **SKILL.md 正文**：提示词注入模板、隐藏 HTML 注释、base64/Unicode 混淆载荷、运行时远程拉取指令（`curl … | source`）、依赖触发式（postinstall 等价物）。当前 `lint` 只扫脚本扩展名文件，**恰好漏掉真实攻击的主载体**（Snyk ToxicSkills：36.8% skill 存在安全缺陷、13.4% 属 critical，91% 的恶意样本是"注入 + 恶意代码"组合）。
+- [ ] `lint` **默认阻断**（error 即拒绝安装，`--force` 放行），并把 lint 从安装后移到安装前（现为 `add.ts` 先安装、后 lint 且只告警）。
+- [ ] 回归语料：以 Snyk 开源的 mcp-scan 规则与公开恶意样本为起点，验收标准 = 恶意样本能抓住 + 头部正常 skill 不误报。
+- [ ] `audit` 覆盖**全量清单**：把绕过 SkillPot 装进来的 skill 也纳入（现只遍历 config 已登记项，"被绕过"反倒审计不到）。
+- [ ] `audit --ci --fail-on error`：非零退出码，可挂进 CI 当闸门。
+
+**Phase 3 —— 把"验证过"变成可传播的信任资产（与 Phase 2 交错）**
+
+- [ ] **逐家实机验证** `unverified` 五家（OpenCode / Gemini CLI / dsh / Cursor / Amp）：在该 Agent 用户级目录放 symlink，确认会话真能发现并触发，把结论升为 `live` 并补证据。
+- [ ] README 挂"逐家验证证据表"（哪家真机验过、怎么验的）——竞品普遍只写"支持 N 个 Agent"而不给证据，这是差异化。
+- [ ] 文案换轨：从"跨 Agent 管理器"转向"skill 供应链安全与治理层"（**须在 Phase 2 能力做出来之后**，否则是空头承诺）。
+
+**Phase 4 —— 治理变现（第三周起）**
+
+- [ ] 策略文件：合规 skill 全员强制开启、高危 skill 全组织禁用。
+- [ ] 私有 registry 对接（Vercel 留了 `SKILLS_API_URL` 口子但策略强制没做扎实；JFrog 已出 Agent Skills Registry）。
+
+**零散待办**
+
+- [ ] GitHub 仓库元数据：补 topics（`agent-skills`、`skill-manager`、`claude-code`、`codex`、`cursor`、`gemini-cli`、`opencode`、`zcode`、`cli`…）与英文 description。当前 description 为中文、topics 为空，等于搜不到；需要仓库凭据（本机无 `gh`、无 token），命令见下。
+- [ ] 自身版本检查 / 自更新提示（`update` 只管 skill 内容，CLI 自身版本无提示）。
+- [ ] Homebrew 分发（主线 D 排队项）。
+- [ ] Windows 支持评估（symlink 需开发者模式/管理员权限，CI 无 Windows 任务）。
+- [ ] 进程内 `detectAll()` 无缓存（GUI 已缓存 60s，CLI/TUI 每次全量 spawn `--version`）。
+
+GitHub 元数据命令（有凭据的机器上执行）：
+
+```bash
+gh repo edit tec-explorer/skillpot \
+  --description "Cross-agent skill manager for coding agents — install once, expose per target, update once." \
+  --add-topic agent-skills --add-topic skill-manager --add-topic claude-code \
+  --add-topic codex --add-topic cursor --add-topic gemini-cli --add-topic opencode \
+  --add-topic zcode --add-topic cli --add-topic developer-tools --add-topic typescript
+```
 
 ---
 

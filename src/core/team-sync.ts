@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import { parse, stringify } from 'yaml';
 import { skillDir } from '../paths';
-import { loadConfig } from './config';
+import { loadConfig, loadState } from './config';
+import { exposedTargets } from './expose';
 import { addSkill, isGitSource } from './add';
 import { enableSkill } from './sync';
 import { uninstallSkill } from './uninstall';
 import { dirChecksum } from './store';
+import { allTargetIds } from '../agents/registry';
 
 /**
  * 团队对齐（主线 B / 产品计划 M2 项目级配置）：
@@ -62,11 +64,15 @@ export function exportManifest(file: string, names?: string[]): ExportResult {
 
   const warnings: string[] = [];
   const skills: ProjectManifest['skills'] = {};
+  const state = loadState();
+  const knownIds = allTargetIds();
   for (const [n, e] of picked) {
+    // 目标列表覆盖通用广播列（0.11 的广播只落在台账、未登记 expose）
+    const ids = exposedTargets(e, state, n, knownIds);
     skills[n] = {
       source: e.source,
       checksum: e.checksum,
-      expose: Object.fromEntries(Object.entries(e.expose).filter(([, v]) => v === true)),
+      expose: Object.fromEntries(ids.map((id) => [id, true])),
     };
     if (e.source.startsWith('local:')) {
       warnings.push(

@@ -1,6 +1,7 @@
 import readline from 'node:readline';
 import { skillDir } from '../paths';
-import { loadConfig } from './config';
+import { loadConfig, loadState } from './config';
+import { isExposed } from './expose';
 import { readSkillDetail } from './skill-detail';
 import { readSkillMeta } from '../util/frontmatter';
 import { storeSkillNames } from './store';
@@ -9,26 +10,35 @@ import { VERSION } from '../version';
 /**
  * 最小 MCP server（stdio，newline-delimited JSON-RPC 2.0）：
  * 任何支持 MCP 的 Agent 都能以 C 档策略消费中央仓库。
- * 通过 SKILLPOT_AGENT=<agentId> 或 tools/call 参数 agent 过滤，遵循开关矩阵。
+ *
+ * 身份与过滤（矩阵约束在服务端强制）：
+ * - 首选在 Agent 的 MCP 配置里声明 `SKILLPOT_AGENT=<agentId>`；
+ * - 一旦声明，tools/call 的 agent 参数被**忽略**——否则消费方可以自称任意 Agent 绕过矩阵；
+ * - 未声明身份时才退回 agent 参数（兼容人工调试场景），两者都没有则视为"全部已装 skill"。
+ * - 通道语义：这里按 `skill × agent` 单元格判定，通用广播列不会自动让某 Agent 可见。
  */
-
 const SERVER_INFO = { name: 'skillpot', version: VERSION };
 
 const TOOLS = [
   {
     name: 'skillpot_list',
     description:
-      'List skills managed by SkillPot. Pass "agent" to only list skills enabled for that agent.',
+      'List skills enabled for this agent by the SkillPot exposure matrix. ' +
+      'Agent identity comes from the SKILLPOT_AGENT env var when set (the "agent" argument is then ignored).',
     inputSchema: {
       type: 'object',
       properties: {
-        agent: { type: 'string', description: 'Agent id, e.g. claude-code. Omit for all installed skills.' },
+        agent: {
+          type: 'string',
+          description:
+            'Agent id, e.g. claude-code. Ignored when SKILLPOT_AGENT is set. Omit for all installed skills.',
+        },
       },
     },
   },
   {
     name: 'skillpot_read',
-    description: 'Read the full SKILL.md of a skill plus its file tree.',
+    description: 'Read the full SKILL.md of a skill plus its file tree (must be enabled for this agent).',
     inputSchema: {
       type: 'object',
       required: ['skill'],
@@ -37,7 +47,7 @@ const TOOLS = [
   },
   {
     name: 'skillpot_search',
-    description: 'Search skills by keyword in name/description.',
+    description: 'Search skills by keyword in name/description (limited to skills enabled for this agent).',
     inputSchema: {
       type: 'object',
       required: ['query'],
@@ -46,19 +56,40 @@ const TOOLS = [
   },
 ];
 
+/**
+ * 解析本次调用代表哪个 Agent：环境变量优先，且不可被 tool 参数放宽/改写。
+ * 导出以便测试。
+ */
+export function effectiveAgentId(param?: unknown): string | undefined {
+  const fromEnv = (process.env.SKILLPOT_AGENT ?? '').trim();
+  if (fromEnv) return fromEnv;
+  const p = typeof param === 'string' ? param.trim() : '';
+  return p || undefined;
+}
+
+/** agent 缺省时代表"全部已装 skill"（人工调试场景）；给了 agent 就必须落在矩阵内 */
 function visibleSkills(agent?: string): { name: string; description: string; source: string }[] {
   const config = loadConfig();
+  const state = loadState();
   const names = storeSkillNames().filter((n) => {
     const entry = config.skills[n];
     if (!entry) return false;
-    if (agent && entry.expose[agent] !== true) return false;
-    return true;
+    if (!agent) return true;
+    return isExposed(entry, state, n, agent);
   });
   return names.map((n) => ({
     name: n,
     description: String(readSkillMeta(skillDir(n))?.description ?? ''),
     source: config.skills[n].source,
   }));
+}
+
+function isVisible(skill: string, agent?: string): boolean {
+  if (!agent) return true;
+  const config = loadConfig();
+  const entry = config.skills[skill];
+  if (!entry) return false;
+  return isExposed(entry, loadState(), skill, agent);
 }
 
 function fmtList(list: { name: string; description: string }[]): string {
@@ -97,12 +128,26 @@ export function handleMcpMessage(raw: string): string | null {
       case 'tools/call': {
         const name = params?.name;
         const args = params?.arguments ?? {};
+        // 环境变量里的身份不可被本次调用覆盖
+        const agent = effectiveAgentId(args.agent);
         let text: string;
-        let isError = false;
+        const isError = false;
         if (name === 'skillpot_list') {
-          text = fmtList(visibleSkills(args.agent ? String(args.agent) : undefined));
+          text = fmtList(visibleSkills(agent));
         } else if (name === 'skillpot_read') {
-          const detail = readSkillDetail(String(args.skill));
+          const skill = String(args.skill);
+          if (agent && !isVisible(skill, agent)) {
+            return respond({
+              content: [
+                {
+                  type: 'text',
+                  text: `skill '${skill}' 未对 ${agent} 开放（SkillPot 开关矩阵），拒绝读取`,
+                },
+              ],
+              isError: true,
+            });
+          }
+          const detail = readSkillDetail(skill);
           if (!detail || detail.skillMd === null) {
             return respond({
               content: [{ type: 'text', text: `skill not found: ${args.skill}` }],
@@ -115,7 +160,7 @@ export function handleMcpMessage(raw: string): string | null {
             detail.files.map((f) => '- ' + f).join('\n');
         } else if (name === 'skillpot_search') {
           const q = String(args.query ?? '').toLowerCase();
-          const list = visibleSkills().filter(
+          const list = visibleSkills(agent).filter(
             (s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q),
           );
           text = list.length ? fmtList(list) : '(no match)';
@@ -134,7 +179,12 @@ export function handleMcpMessage(raw: string): string | null {
 
 /** 以 stdio 方式运行 MCP server（每行一个 JSON-RPC 消息） */
 export function startMcpServer(): void {
-  console.error(`skillpot MCP server (stdio) ready — set SKILLPOT_AGENT=<agentId> to filter by expose matrix`);
+  const declared = (process.env.SKILLPOT_AGENT ?? '').trim();
+  console.error(
+    declared
+      ? `skillpot MCP server (stdio) ready — agent 身份已固定为 ${declared}（由 SKILLPOT_AGENT 声明，tools/call 的 agent 参数被忽略）`
+      : 'skillpot MCP server (stdio) ready — 建议在 Agent 的 MCP 配置里设 SKILLPOT_AGENT=<agentId>，否则开关矩阵无法按 Agent 过滤',
+  );
   const rl = readline.createInterface({ input: process.stdin, terminal: false });
   rl.on('line', (line) => {
     const out = handleMcpMessage(line);
