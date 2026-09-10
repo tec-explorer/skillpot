@@ -3,6 +3,27 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.16.0] - 2026-09-10
+
+Web GUI 策略治理与私有 Registry 面板：将组织级安全基线与私有分发接入图形控制台。
+
+### Added
+- **Web 控制台全新「策略」标签页**：
+  - **策略与合规仪表盘**：可视化展示 `skillpot.policy.yaml` 状态、运行模式（`strict` / `audit`）、未配置时的引导初始化以及合规/违规状态总览（包含阻断与告警计数）。
+  - **私有 Registry 状态卡片**：直观呈现私有/公共 Registry 终端 URL、Token 注入状态及 `force_private` 私有锁定标志。
+- **合规审查与一键修复**：
+  - 结构化表格展现违规规则、涉事技能/渠道与修复建议。
+  - 支持 **「⚡ 一键自动修复」** 与 **「预演修复 (Dry Run)」**，自动执行黑名单清理、禁用渠道收回与强制基线补齐。
+  - 弹窗展示操作结果，并通过 SSE 实时联动全应用状态更新。
+- **策略规则拓扑可视化看板**：
+  - 卡片网格分类展现来源白名单、强制开启基线、禁用黑名单及目标渠道访问规则。
+- **在线 YAML 查看与编辑器**：
+  - 提供轻量暗色代码编辑区，支持在线修改策略源码，带格式与结构校验。
+- **服务端 Policy API 路由**：
+  - 新增 `/api/policy/status`、`/api/policy/init`、`/api/policy/check`、`/api/policy/apply`、`/api/policy/save` 及 `/api/registry/status` 端点。
+- **自动化测试套件**：
+  - 新增 `tests/gui-policy.test.ts` 覆盖 API 路由与安全权限校验。
+
 ## [0.15.0] - 2026-09-10
 
 Phase 4 落地：企业级策略治理与私有 Registry 对接——将管理层推向组织级 Policy-as-Code 与资产闭环。

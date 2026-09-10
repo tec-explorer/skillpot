@@ -184,7 +184,24 @@ skillpot sync --dry-run     # 先预览将对齐的动作
 - `local:` 来源无法跨机器对齐（导出时警告）；建议团队 skill 一律走 git 源
 - 对齐安装同样经过 lint 与来源登记
 
-## 11. 命令速查
+## 11. 策略治理与私有 Registry（GUI「策略」页）
+
+在 Web 控制台切换到**「策略」**标签页：
+
+1. **策略总览仪表盘**：
+   - 查看当前生效的 `skillpot.policy.yaml` 路径与模式（严格阻断 `strict` / 仅审计告警 `audit`）。
+   - 查看合规审查状态（是否满足基线、是否存在错误违规与告警违规）。
+   - 查看私有 Registry 连接状态、Bearer Token 注入与是否开启 `force_private` 私有锁定模式。
+2. **合规审查与一键修复**：
+   - 结构化列出所有违规项（黑名单禁用项、非白名单来源、强制基线缺失或偏离、被禁渠道违规暴露）。
+   - **「⚡ 一键自动修复」**：自动卸载黑名单技能、收回禁用渠道暴露并安装强制基线技能。
+   - **「预演修复 (Dry Run)」**：预览修复动作而不改变实际环境。
+3. **策略规则拓扑可视化**：
+   - 规则卡片网格直观展示来源白名单、强制开启基线、禁用黑名单及渠道权限。
+4. **在线 YAML 查看与编辑**：
+   - 内置轻量 YAML 编辑器，支持即时修改策略源码、格式校验并自动重新验证。
+
+## 12. 命令速查
 
 | 命令 | 说明 |
 |---|---|
@@ -200,6 +217,8 @@ skillpot sync --dry-run     # 先预览将对齐的动作
 | `skillpot update [skill] [--check]` | git 来源更新 |
 | `skillpot doctor [--fix]` | 体检与修复 |
 | `skillpot audit [--json]` | 审计各目标实际生效的 skill、来源与被绕过情况 |
+| `skillpot policy check/apply/init` | 企业策略治理：审查合规性、一键自动修复与模板初始化 |
+| `skillpot registry` | 查看私有/公共 Registry 终端与认证状态 |
 | `skillpot gui [--port] [--host] [--no-open]` | Web 控制台 |
 | `skillpot tui [--once]` | 终端开关矩阵 |
 | `skillpot mcp` | MCP server(stdio) |
@@ -208,7 +227,7 @@ skillpot sync --dry-run     # 先预览将对齐的动作
 | `skillpot search <关键词>` / `install-search <id>` | 搜索并安装 skills.sh 目录中的 skill |
 | `skillpot sync [--export] [--dry-run]` | 团队对齐：按项目清单安装/对齐 |
 
-## 12. 支持的目标
+## 13. 支持的目标
 
 **八家 Agent**——Claude Code、ZCode、Codex CLI、OpenCode、Gemini CLI、DeepSeek CLI(dsh)、Cursor、Amp,加上**通用广播渠道**(`~/.agents/skills`)。适配器 = "用户级 skills 发现路径" + 二进制/目录指纹检测。
 

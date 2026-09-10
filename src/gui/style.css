@@ -626,3 +626,557 @@ body {
     transform: none;
   }
 }
+
+/* 策略治理与私有 Registry */
+.policy-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.policy-header-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.policy-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.policy-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.policy-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.badge-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.badge-tag.ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.badge-tag.bad {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.badge-mode {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.badge-mode.strict {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.badge-mode.audit {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.policy-file-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.policy-name {
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+.policy-empty-note {
+  font-size: 13px;
+  color: var(--dim);
+  padding: 8px 0;
+}
+
+.compliance-pass {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.compliance-pass .pass-icon {
+  font-size: 24px;
+  color: var(--ok);
+}
+
+.compliance-pass .pass-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.compliance-pass .pass-desc {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.compliance-fail .fail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.compliance-fail .fail-counts {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.count-error {
+  color: #dc2626;
+}
+
+.count-warn {
+  color: #d97706;
+}
+
+.fail-tip {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.registry-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.registry-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reg-label {
+  color: var(--dim);
+  min-width: 44px;
+}
+
+.reg-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.reg-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.reg-badge.private {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.reg-badge.public {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.token-ok {
+  color: var(--ok);
+  font-weight: 500;
+}
+
+.token-none {
+  color: var(--dim);
+}
+
+.force-private-tag {
+  color: #b45309;
+  font-weight: 600;
+  background: #fef3c7;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.normal-tag {
+  color: var(--dim);
+}
+
+.policy-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+
+.section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.violation-count-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.violation-count-badge.ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.violation-count-badge.bad {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.violations-table-wrap {
+  overflow-x: auto;
+}
+
+.policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.policy-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: #f8fafc;
+  color: var(--dim);
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+
+.policy-table td {
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.violation-row.error {
+  background: #fff8f8;
+}
+
+.violation-row.warn {
+  background: #fffdf5;
+}
+
+.severity-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.severity-tag.error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.severity-tag.warn {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.rule-type-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.violation-skill {
+  color: var(--ink);
+}
+
+.violation-message {
+  color: #334155;
+  line-height: 1.5;
+}
+
+.empty-violations-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+}
+
+.empty-violations-card .empty-icon {
+  font-size: 24px;
+}
+
+.empty-violations-card .empty-text {
+  font-size: 13px;
+  color: #166534;
+  font-weight: 500;
+}
+
+.policy-apply-modal {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+
+.apply-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.apply-modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--dim);
+}
+
+.apply-action-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.apply-act-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.act-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.apply-act-item.installed .act-badge {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.apply-act-item.enabled .act-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.apply-act-item.uninstalled .act-badge,
+.apply-act-item.disabled .act-badge {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.apply-act-item.failed .act-badge {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.apply-remaining-warn {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  font-size: 12px;
+  color: #92400e;
+}
+
+.policy-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.rule-box {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.rule-box-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rule-count {
+  font-size: 11px;
+  background: #e2e8f0;
+  color: #475569;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.rule-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rule-list-item {
+  font-size: 12px;
+  border-bottom: 1px dashed #e2e8f0;
+  padding-bottom: 6px;
+}
+
+.rule-list-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.rule-list-item.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: #2563eb;
+}
+
+.rule-sub-info {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+.rule-sub-info.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.rule-empty {
+  font-size: 12px;
+  color: var(--dim);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.channel-rule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.channel-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.channel-badge.disallowed {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.channel-badge.allowed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.text-bad {
+  color: #b91c1c;
+}
+
+.policy-editor-wrap {
+  width: 100%;
+}
+
+.policy-yaml-textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 12px 14px;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.policy-yaml-textarea:read-only {
+  opacity: 0.9;
+  cursor: default;
+}
+

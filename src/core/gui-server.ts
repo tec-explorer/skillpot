@@ -20,11 +20,20 @@ import { uninstallSkill } from './uninstall';
 import { updateSkills } from './update';
 import {
   addSource,
+  getRegistryStatus,
   installFromMarket,
   listSources,
   removeSource,
   scanSource,
 } from './market';
+import {
+  applyPolicy,
+  checkPolicy,
+  initPolicyFile,
+  loadPolicy,
+  readPolicyRaw,
+  savePolicyRaw,
+} from './policy';
 import { exportManifest, inspectManifest, syncManifest } from './team-sync';
 import { sanitizeSkillName } from '../util/frontmatter';
 
@@ -279,6 +288,112 @@ export async function handleApiRequest(
       return { status: 200, body: result };
     }
 
+
+    if (method === 'GET' && pathname === '/api/policy/status') {
+      const fileQuery = query.get('file') || undefined;
+      const loaded = loadPolicy(fileQuery);
+      if (!loaded) {
+        return {
+          status: 200,
+          body: {
+            hasPolicy: false,
+            file: null,
+            raw: '',
+            policy: null,
+            checkResult: null,
+            registryStatus: getRegistryStatus(),
+          },
+        };
+      }
+      const raw = readPolicyRaw(loaded.file);
+      const checkResult = checkPolicy(loaded.policy, loaded.file);
+      const registryStatus = getRegistryStatus(loaded.policy);
+      return {
+        status: 200,
+        body: {
+          hasPolicy: true,
+          file: loaded.file,
+          raw: raw?.content ?? '',
+          policy: loaded.policy,
+          checkResult,
+          registryStatus,
+        },
+      };
+    }
+    if (method === 'POST' && pathname === '/api/policy/init') {
+      const b = (body ?? {}) as { file?: unknown };
+      const explicit = typeof b.file === 'string' && b.file.trim() ? b.file.trim() : undefined;
+      const initRes = initPolicyFile(explicit);
+      const loaded = loadPolicy(initRes.path);
+      const raw = readPolicyRaw(initRes.path);
+      const checkResult = loaded ? checkPolicy(loaded.policy, loaded.file) : null;
+      const registryStatus = getRegistryStatus(loaded?.policy);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          created: initRes.created,
+          file: initRes.path,
+          raw: raw?.content ?? '',
+          policy: loaded?.policy ?? null,
+          checkResult,
+          registryStatus,
+        },
+      };
+    }
+    if (method === 'POST' && pathname === '/api/policy/check') {
+      const b = (body ?? {}) as { file?: unknown };
+      const explicit = typeof b.file === 'string' && b.file.trim() ? b.file.trim() : undefined;
+      const loaded = loadPolicy(explicit);
+      if (!loaded) {
+        return { status: 400, body: { error: '未找到策略文件' } };
+      }
+      const checkResult = checkPolicy(loaded.policy, loaded.file);
+      return { status: 200, body: { checkResult } };
+    }
+    if (method === 'POST' && pathname === '/api/policy/apply') {
+      const b = (body ?? {}) as { file?: unknown; dryRun?: unknown; force?: unknown };
+      const explicit = typeof b.file === 'string' && b.file.trim() ? b.file.trim() : undefined;
+      const loaded = loadPolicy(explicit);
+      if (!loaded) {
+        return { status: 400, body: { error: '未找到策略文件' } };
+      }
+      const applyResult = await applyPolicy(loaded.policy, loaded.file, {
+        dryRun: b.dryRun === true,
+        force: b.force === true,
+      });
+      const checkResult = checkPolicy(loaded.policy, loaded.file);
+      return { status: 200, body: { applyResult, checkResult } };
+    }
+    if (method === 'POST' && pathname === '/api/policy/save') {
+      const b = (body ?? {}) as { content?: unknown; file?: unknown };
+      if (typeof b.content !== 'string') {
+        return { status: 400, body: { error: '需要 content 字符串字段' } };
+      }
+      const explicit = typeof b.file === 'string' && b.file.trim() ? b.file.trim() : undefined;
+      const saveRes = savePolicyRaw(b.content, explicit);
+      const loaded = loadPolicy(saveRes.path);
+      const raw = readPolicyRaw(saveRes.path);
+      const checkResult = loaded ? checkPolicy(loaded.policy, loaded.file) : null;
+      const registryStatus = getRegistryStatus(loaded?.policy);
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          file: saveRes.path,
+          raw: raw?.content ?? '',
+          policy: loaded?.policy ?? null,
+          checkResult,
+          registryStatus,
+        },
+      };
+    }
+    if (method === 'GET' && pathname === '/api/registry/status') {
+      const policyPath = query.get('file') || undefined;
+      const policyObj = loadPolicy(policyPath)?.policy;
+      const registryStatus = getRegistryStatus(policyObj);
+      return { status: 200, body: { registryStatus } };
+    }
 
     if (method === 'GET' && pathname === '/api/doctor') {
       return { status: 200, body: { issues: runDoctor() } };

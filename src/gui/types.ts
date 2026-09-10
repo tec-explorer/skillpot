@@ -183,3 +183,71 @@ export const SYNC_ACTION_LABEL: Record<SyncAction, string> = {
   skip: '跳过',
   error: '失败',
 };
+
+export interface PolicyViolationView {
+  type: string;
+  severity: 'error' | 'warn';
+  rule: string;
+  skill?: string;
+  target?: string;
+  message: string;
+}
+
+export interface PolicyRuleItem {
+  name?: string;
+  source?: string;
+  targets?: string[];
+  pattern?: string;
+  reason?: string;
+  checksum?: string;
+}
+
+export interface PolicyObjectView {
+  version: number;
+  name?: string;
+  mode?: 'strict' | 'audit';
+  enforce?: PolicyRuleItem[];
+  deny?: PolicyRuleItem[];
+  allowed_sources?: string[];
+  targets?: Record<string, { allow?: boolean }>;
+  registry?: { endpoint?: string; url?: string; token_env?: string; force_private?: boolean };
+}
+
+export interface PolicyCheckResultView {
+  compliant: boolean;
+  file: string;
+  policy: PolicyObjectView;
+  enforcedCount: number;
+  deniedCount: number;
+  violations: PolicyViolationView[];
+}
+
+export interface RegistryStatusView {
+  url: string;
+  isPrivate: boolean;
+  hasToken: boolean;
+  tokenSource?: string;
+  forcePrivate: boolean;
+}
+
+export interface PolicyStatusResp {
+  hasPolicy: boolean;
+  file: string | null;
+  raw: string;
+  policy: PolicyObjectView | null;
+  checkResult: PolicyCheckResultView | null;
+  registryStatus: RegistryStatusView;
+}
+
+export interface PolicyApplyActionView {
+  action: 'installed' | 'enabled' | 'uninstalled' | 'disabled' | 'failed';
+  skill: string;
+  target?: string;
+  detail: string;
+}
+
+export interface PolicyApplyResultView {
+  actions: PolicyApplyActionView[];
+  violationsRemaining: PolicyViolationView[];
+}
+

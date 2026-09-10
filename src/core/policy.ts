@@ -552,3 +552,52 @@ targets:
     allow: false # 禁止企业内部向 ~/.agents/skills 广播
 `;
 }
+
+/**
+ * 读取策略文件的原始 YAML 内容与路径，未找到时返回 null
+ */
+export function readPolicyRaw(explicitPath?: string): { content: string; path: string } | null {
+  const file = findPolicyFile(explicitPath);
+  if (!file) return null;
+  const content = fs.readFileSync(file, 'utf8');
+  return { content, path: file };
+}
+
+/**
+ * 保存原始 YAML 策略内容，保存前进行语法与基本结构校验
+ */
+export function savePolicyRaw(rawYaml: string, explicitPath?: string): { path: string } {
+  let data: any;
+  try {
+    data = parse(rawYaml);
+  } catch (e) {
+    throw new Error(`YAML 语法错误：${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  if (!data || typeof data !== 'object') {
+    throw new Error('策略文件必须为有效的 YAML 对象');
+  }
+
+  if (data.version !== 1) {
+    throw new Error(`不支持的策略文件版本：${data.version}（当前仅支持 version: 1）`);
+  }
+
+  const target = explicitPath
+    ? path.resolve(process.cwd(), explicitPath)
+    : (findPolicyFile() || path.join(process.cwd(), DEFAULT_POLICY_FILE));
+  fs.writeFileSync(target, rawYaml, 'utf8');
+  return { path: target };
+}
+
+/**
+ * 初始化策略文件
+ */
+export function initPolicyFile(explicitPath?: string): { path: string; created: boolean } {
+  const target = explicitPath ? path.resolve(process.cwd(), explicitPath) : path.join(process.cwd(), DEFAULT_POLICY_FILE);
+  if (fs.existsSync(target)) {
+    return { path: target, created: false };
+  }
+  fs.writeFileSync(target, generatePolicyTemplate(), 'utf8');
+  return { path: target, created: true };
+}
+

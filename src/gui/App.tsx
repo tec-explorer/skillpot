@@ -8,6 +8,7 @@ import { AddView } from './views/AddView';
 import { UpdateView } from './views/UpdateView';
 import { MarketView } from './views/MarketView';
 import { TeamView } from './views/TeamView';
+import { PolicyView } from './views/PolicyView';
 import { DetailModal } from './views/DetailModal';
 
 export interface Toast {
@@ -16,7 +17,7 @@ export interface Toast {
   bad?: boolean;
 }
 
-type Tab = 'matrix' | 'doctor' | 'adopt' | 'add' | 'market' | 'update' | 'team';
+type Tab = 'matrix' | 'doctor' | 'adopt' | 'add' | 'market' | 'update' | 'team' | 'policy';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'matrix', label: '开关矩阵' },
@@ -26,6 +27,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'market', label: '市场' },
   { id: 'update', label: '维护' },
   { id: 'team', label: '团队' },
+  { id: 'policy', label: '策略' },
 ];
 
 export function App() {
@@ -116,8 +118,10 @@ export function App() {
             toast={toast}
             onOpenDetail={setDetailSkill}
           />
-        ) : (
+        ) : tab === 'team' ? (
           <TeamView reload={reload} toast={toast} />
+        ) : (
+          <PolicyView rev={rev} reload={reload} toast={toast} />
         )}
       </main>
 
