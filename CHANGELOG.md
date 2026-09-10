@@ -3,6 +3,27 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.17.0] - 2026-09-10
+
+生态与 CI 扩圈：官方 GitHub Action、Homebrew 分发、CLI 自更新检查与海外社区资产。
+
+### Added
+- **官方 GitHub Action (`action.yml`)**：
+  - 复合 Action，支持在 CI 中以 `audit --ci --fail-on error` 或 `policy check --ci` 阻断恶意注入与合规偏离。
+  - 在 `.github/workflows/ci.yml` 中完成 Dogfooding 自闭环校验。
+  - 编写使用指南 `docs/ecosystem/github-action.md`。
+- **Homebrew Tap 分发支持**：
+  - 提供符合官方规范的 `Formula/skillpot.rb` 模板。
+  - 自动化脚本 `scripts/generate-brew-formula.sh` 实时打包并计算发布物 SHA256。
+  - 维护指南 `docs/ecosystem/homebrew.md` 支持 `brew tap tec-explorer/tap && brew install skillpot`。
+- **CLI 自身版本更新提醒 (`src/util/update-notifier.ts`)**：
+  - 异步非阻塞比对 npm registry 最新版本，带 800ms 严格超时与异常静默兜底。
+  - 本地 24 小时缓存防抖（`~/.skillpot/.update-check.json`）。
+  - 在 CI 环境、非 TTY 管道与 `--json` 模式下自动静默。
+  - 新增自动化测试套件 `tests/update-notifier.test.ts`。
+- **海外社区传播资产 (`docs/ecosystem/community-launch.md`)**：
+  - 全套 Hacker News (Show HN)、Reddit、X (Twitter)、Discord 发布草案与 GitHub Topics 设置命令。
+
 ## [0.16.0] - 2026-09-10
 
 Web GUI 策略治理与私有 Registry 面板：将组织级安全基线与私有分发接入图形控制台。

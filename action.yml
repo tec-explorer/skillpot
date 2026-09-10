@@ -1,0 +1,54 @@
+name: 'SkillPot Security & Policy Gate'
+description: 'Cross-agent skill supply chain security & governance gate for coding agents (audit, policy check, prompt injection block).'
+author: 'tec-explorer'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  args:
+    description: 'Arguments passed to skillpot CLI (e.g. "audit --ci --fail-on error", "policy check --ci")'
+    required: false
+    default: 'audit --ci --fail-on error'
+  version:
+    description: 'Version of @tec-explorer/skillpot to use (default: "latest", or "local" to use local repository dist)'
+    required: false
+    default: 'latest'
+  policy:
+    description: 'Path to custom skillpot.policy.yaml'
+    required: false
+    default: ''
+  working-directory:
+    description: 'Working directory to execute skillpot'
+    required: false
+    default: '.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '>=18'
+
+    - name: Run SkillPot Gate
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        CMD_ARGS="${{ inputs.args }}"
+        if [ -n "${{ inputs.policy }}" ]; then
+          CMD_ARGS="$CMD_ARGS --policy ${{ inputs.policy }}"
+        fi
+
+        if [ "${{ inputs.version }}" = "local" ]; then
+          if [ -f "$GITHUB_ACTION_PATH/dist/cli.mjs" ]; then
+            echo "Running local skillpot from action path: $GITHUB_ACTION_PATH/dist/cli.mjs $CMD_ARGS"
+            node "$GITHUB_ACTION_PATH/dist/cli.mjs" $CMD_ARGS
+          else
+            echo "Local build not found in action path, using node dist/cli.mjs $CMD_ARGS"
+            node dist/cli.mjs $CMD_ARGS
+          fi
+        else
+          echo "Running npx @tec-explorer/skillpot@${{ inputs.version }} $CMD_ARGS"
+          npx --yes @tec-explorer/skillpot@${{ inputs.version }} $CMD_ARGS
+        fi

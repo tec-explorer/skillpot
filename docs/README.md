@@ -15,6 +15,10 @@ docs/
 │   ├── agent-adapters.md      # Agent 适配器与三档落地策略（含新增适配器指南）
 │   ├── enterprise-policy.md   # 企业策略引擎与私有 Registry 设计
 │   └── mcp-bridge.md          # MCP bridge 设计（C 档落地策略）
+├── ecosystem/                 # 生态与分发指引
+│   ├── github-action.md       # 官方 GitHub Action 使用指南
+│   ├── homebrew.md            # Homebrew Tap 与 Formula 维护指南
+│   └── community-launch.md    # 海外社区传播与发布方案
 ├── reports/                   # 里程碑执行报告（一个里程碑一份，只增不改）
 │   ├── 2026-09-03-m0-m1-execution.md
 │   ├── 2026-09-03-m2-execution.md

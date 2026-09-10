@@ -29,6 +29,7 @@ import { runTui } from './tui/index';
 import { renderTable } from './util/table';
 import { VERSION } from './version';
 import { VERIFY_LABELS, VerifyLevel } from './types';
+import { initUpdateNotifier } from './util/update-notifier';
 
 const program = new Command();
 
@@ -38,6 +39,8 @@ program
     '面向编程 Agent 的 Skill 供应链安全与跨工具治理层 —— 一处安装，按 Agent 粒度开关，安装即阻断恶意注入，全量目录审计与 CI 门禁',
   )
   .version(VERSION);
+
+initUpdateNotifier();
 
 /** 统一错误出口：业务错误只打印消息，不打堆栈；兼容同步/异步 action */
 function run(fn: (...args: any[]) => unknown): (...args: any[]) => Promise<void> {

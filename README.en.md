@@ -35,7 +35,9 @@ Registries and marketplaces (skills.sh, Anthropic marketplace) answer *"where do
 Requires Node ≥ 18.
 
 ```bash
-npm install -g @tec-explorer/skillpot   # or: npx @tec-explorer/skillpot (alias: spot)
+npm install -g @tec-explorer/skillpot          # npm registry install (alias: spot)
+brew tap tec-explorer/tap && brew install skillpot # Homebrew install (macOS / Linux)
+npx @tec-explorer/skillpot                     # run without installing
 
 skillpot init                     # create ~/.skillpot and detect installed agents
 skillpot adopt --dry-run          # preview: existing skills found in agent dirs
@@ -95,10 +97,23 @@ Landing strategies per agent: **A** symlink (default) → **B** copy + resync (a
 - **Automated Probe Tool**: Built-in [`scripts/verify-probe.sh`](./scripts/verify-probe.sh). Run `bash scripts/verify-probe.sh <agent-id>` to test and verify symlink discovery on any machine.
 - Detailed dossier and shadowing rules: [docs/design/verification-matrix.md](./docs/design/verification-matrix.md) and [docs/design/agent-adapters.md](./docs/design/agent-adapters.md).
 
+## GitHub Action (CI Security Gate)
+
+Add automated supply-chain security gating into your repository's pull requests:
+
+```yaml
+- name: Run SkillPot Security Gate
+  uses: tec-explorer/skillpot@main
+  with:
+    args: 'audit --ci --fail-on error'
+```
+
+Supports organizational policy enforcement (`policy check --ci`) and private registry token integration. See [docs/ecosystem/github-action.md](docs/ecosystem/github-action.md).
+
 ## Documentation
 
 - [Feature guide (screenshots)](docs/guide.md) — Chinese, with screenshots of every surface
-- [Design: agent adapters](docs/design/agent-adapters.md) · [Design: MCP bridge](docs/design/mcp-bridge.md) · [Design: Enterprise policy](docs/design/enterprise-policy.md) · [Product plan](docs/product/product-plan.md)
+- [Design: agent adapters](docs/design/agent-adapters.md) · [Design: MCP bridge](docs/design/mcp-bridge.md) · [Design: Enterprise policy](docs/design/enterprise-policy.md) · [GitHub Action](docs/ecosystem/github-action.md) · [Homebrew Tap](docs/ecosystem/homebrew.md) · [Product plan](docs/product/product-plan.md)
 
 ## Security
 

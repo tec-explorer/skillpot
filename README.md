@@ -49,12 +49,13 @@
 
 要求 Node ≥ 18。
 
-**安装 skillpot 本体**（三选一）：
+**安装 skillpot 本体**（多种安装方式）：
 
 ```bash
-npm install -g @tec-explorer/skillpot          # npm registry 安装（tec-explorer 组织 scope）；短别名 spot，或免安装 npx @tec-explorer/skillpot
-npm install -g github:tec-explorer/skillpot    # GitHub 直装（安装时自动构建，无需等 npm 发布）
-npx github:tec-explorer/skillpot init          # 免安装直接运行
+npm install -g @tec-explorer/skillpot          # npm registry 安装（短别名 spot）
+brew tap tec-explorer/tap && brew install skillpot # Homebrew 安装 (macOS / Linux)
+npx @tec-explorer/skillpot                     # 免安装直接运行
+npm install -g github:tec-explorer/skillpot    # GitHub 源码直装
 ```
 
 **常用命令**：
@@ -203,6 +204,19 @@ registry:
 - `skillpot registry`：查看私有 Registry 连接与鉴权状态
 - 详见 [docs/design/enterprise-policy.md](./docs/design/enterprise-policy.md)。
 
+## 官方 GitHub Action (CI 门禁)
+
+在项目的 GitHub Actions 工作流中引入安全门禁，拦截任何恶意提示词注入、隐藏载荷与违规外部技能：
+
+```yaml
+- name: Run SkillPot Security Gate
+  uses: tec-explorer/skillpot@main
+  with:
+    args: 'audit --ci --fail-on error'
+```
+
+支持企业自定义策略门禁（`policy check --ci`）与私有 Registry Token 注入，详见 [docs/ecosystem/github-action.md](./docs/ecosystem/github-action.md)。
+
 ## 安全
 
 Skill 是注入模型上下文的指令 + 可携带可执行脚本。SkillPot 的默认安全姿态：
@@ -253,7 +267,7 @@ npm run build     # tsc 类型检查 + esbuild 打包为单文件 ESM（dist/cli
 
 ## 文档
 
-全部文档在 [docs/](./docs/README.md)（索引）：[功能指南(含截图)](./docs/guide.md) ｜ [产品规划](./docs/product/product-plan.md) ｜ [设计：适配器与落地策略](./docs/design/agent-adapters.md) ｜ [设计：MCP bridge](./docs/design/mcp-bridge.md) ｜ [设计：企业策略与私有 Registry](./docs/design/enterprise-policy.md) ｜ [里程碑执行报告](./docs/reports/) ｜ [CHANGELOG](./CHANGELOG.md)
+全部文档在 [docs/](./docs/README.md)（索引）：[功能指南(含截图)](./docs/guide.md) ｜ [产品规划](./docs/product/product-plan.md) ｜ [设计：适配器与落地策略](./docs/design/agent-adapters.md) ｜ [设计：MCP bridge](./docs/design/mcp-bridge.md) ｜ [设计：企业策略与私有 Registry](./docs/design/enterprise-policy.md) ｜ [官方 GitHub Action](./docs/ecosystem/github-action.md) ｜ [Homebrew Tap](./docs/ecosystem/homebrew.md) ｜ [里程碑执行报告](./docs/reports/) ｜ [CHANGELOG](./CHANGELOG.md)
 
 ## 贡献
 

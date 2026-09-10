@@ -271,9 +271,10 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 
 **零散待办**
 
-- [ ] GitHub 仓库元数据：补 topics（`agent-skills`、`skill-manager`、`claude-code`、`codex`、`cursor`、`gemini-cli`、`opencode`、`zcode`、`cli`…）与英文 description。当前 description 为中文、topics 为空，等于搜不到；需要仓库凭据（本机无 `gh`、无 token），命令见下。
-- [ ] 自身版本检查 / 自更新提示（`update` 只管 skill 内容，CLI 自身版本无提示）。
-- [ ] Homebrew 分发（主线 D 排队项）。
+- [x] 官方 GitHub Action：提供开箱即用 Action (`action.yml`)，支持在 PR 中以 `audit --ci` 或 `policy check --ci` 门禁阻断恶意注入与合规偏离。
+- [x] Homebrew 分发通道：提供 `Formula/skillpot.rb` 与自动化计算 SHA256 脚本 `scripts/generate-brew-formula.sh`。
+- [x] 自身版本检查 / 自更新提示：轻量非阻塞版本比对，24h 本地缓存，命令执行完成退出时友善提示更新。
+- [x] GitHub 仓库元数据与海外社区宣发：在 `docs/ecosystem/community-launch.md` 中整理全套 HN, Reddit, X (Twitter), Discord 发布草案与 `gh repo edit` 命令。
 - [ ] Windows 支持评估（symlink 需开发者模式/管理员权限，CI 无 Windows 任务）。
 - [ ] 进程内 `detectAll()` 无缓存（GUI 已缓存 60s，CLI/TUI 每次全量 spawn `--version`）。
 
