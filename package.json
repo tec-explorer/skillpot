@@ -1,7 +1,7 @@
 {
   "name": "@tec-explorer/skillpot",
-  "version": "0.13.0",
-  "description": "Cross-agent skill manager: install once, expose per coding agent (Claude Code / ZCode / Codex / OpenCode / Gemini CLI / DeepSeek CLI / Cursor / Amp) or to the ~/.agents/skills cross-tool broadcast directory.",
+  "version": "0.14.0",
+  "description": "Cross-agent skill supply chain security & governance layer for coding agents — install once, expose per target, pre-install safety gate, full audit.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tec-explorer/skillpot.git"
@@ -38,11 +38,19 @@
   "keywords": [
     "skills",
     "agent-skills",
+    "supply-chain-security",
+    "security",
+    "governance",
+    "prompt-injection",
     "claude-code",
     "codex",
-    "opencode",
+    "cursor",
     "gemini-cli",
+    "opencode",
     "zcode",
+    "amp",
+    "developer-tools",
+    "typescript",
     "cli"
   ],
   "dependencies": {

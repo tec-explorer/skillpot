@@ -51,8 +51,8 @@ export const AGENTS: AgentAdapter[] = [
       path.join(home, '.opencode'),
     ],
     skillsDir: (home) => path.join(home, '.config', 'opencode', 'skill'),
-    verify: 'unverified',
-    verified: '官方文档路径，待实机确认',
+    verify: 'docs',
+    verified: '官方文档确认 ~/.config/opencode/skill/（单数目录，兼容 SKILL.md 规范）；symlink 发现待实机确认',
   },
   {
     id: 'gemini-cli',
@@ -60,8 +60,8 @@ export const AGENTS: AgentAdapter[] = [
     binaries: ['gemini'],
     fingerprints: (home) => [path.join(home, '.gemini')],
     skillsDir: (home) => path.join(home, '.gemini', 'skills'),
-    verify: 'unverified',
-    verified: '官方支持 Agent Skills，待实机确认',
+    verify: 'live',
+    verified: 'Google Antigravity / Gemini CLI 实机探针确认：渐进式加载 SKILL.md frontmatter，会话可无缝触发',
   },
   {
     id: 'dsh',
@@ -79,9 +79,9 @@ export const AGENTS: AgentAdapter[] = [
     binaries: ['cursor'],
     fingerprints: (home) => [path.join(home, '.cursor')],
     skillsDir: (home) => path.join(home, '.cursor', 'skills'),
-    verify: 'unverified',
+    verify: 'docs',
     verified:
-      '官方文档确认 ~/.cursor/skills/（个人）与 .cursor/skills/（项目）；symlink 发现任待实机确认',
+      '官方文档与 create-skill 规范确认 ~/.cursor/skills/（个人）与 .cursor/skills/（项目）；symlink 发现待实机确认',
   },
   {
     id: 'amp',
@@ -89,8 +89,8 @@ export const AGENTS: AgentAdapter[] = [
     binaries: ['amp'],
     fingerprints: (home) => [path.join(home, '.config', 'amp'), path.join(home, '.amp')],
     skillsDir: (home) => path.join(home, '.config', 'amp', 'skills'),
-    verify: 'unverified',
-    verified: '官方文档确认 ~/.config/amp/skills/（用户级，多目录并读）；symlink 发现任待实机确认',
+    verify: 'docs',
+    verified: '官方规范公告确认 ~/.config/amp/skills/（用户级，多目录并读）；symlink 发现待实机确认',
   },
   {
     id: BROADCAST_AGENT_ID,

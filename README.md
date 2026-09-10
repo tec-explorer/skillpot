@@ -6,12 +6,12 @@
 [![npm](https://img.shields.io/npm/v/@tec-explorer/skillpot)](https://www.npmjs.com/package/@tec-explorer/skillpot)
 [![npm downloads](https://img.shields.io/npm/dm/@tec-explorer/skillpot)](https://www.npmjs.com/package/@tec-explorer/skillpot)
 
-**跨编程 Agent 的 Skill 管理器 —— 一处安装，按 Agent 开关，一处更新。**
-*Cross-agent skill manager for coding agents: install once, expose per agent, update once.*
+**面向编程 Agent 的 Skill 供应链安全与跨工具治理层 —— 一处安装，按 Agent 粒度开关，安装即阻断恶意注入，全量目录审计与 CI 门禁。**
+*Cross-agent skill supply chain security & governance layer for coding agents — install once, expose per target, pre-install safety gate, full audit.*
 
 [English](README.en.md) ｜ 中文
 
-> 编程 Agent(Claude Code、ZCode、Codex、OpenCode、Gemini CLI、DeepSeek CLI、Cursor…)已收敛到同一套 `SKILL.md` 开放标准,但发现路径各自为政:装进 `~/.claude/skills` 就只对 Claude Code 生效。SkillPot 把 skill 收进一个中央仓库,按 Agent 粒度开关暴露,并提供冲突体检与安全扫描。
+> 编程 Agent（Claude Code、ZCode、Codex、OpenCode、Gemini CLI、Cursor、Amp…）已收敛到同一套 `SKILL.md` 开放标准，但面临**供应链安全风险**（提示词注入、恶意载荷、未受管外部 skill 绕过）与**发现路径割裂**双重挑战。SkillPot 构筑安全治理防线：文件落盘前深度阻断高危注入，全量物理目录审计与 CI 门禁，按目标精确开关，并公开**逐家实机验证证据表**。
 
 ![GUI 开关矩阵](docs/images/gui-matrix.png)
 
@@ -19,16 +19,18 @@
 
 ## 特性
 
-- **一处安装**：中央仓库 `~/.skillpot/skills/` 存唯一真身，自带 checksum 与 lockfile
-- **按目标开关**：`config.yaml` 里的 skill × 目标矩阵 + symlink 同步引擎；TUI 矩阵可视化切换，或 `skillpot gui` 浏览器控制台
-- **通用广播列**：跨工具共享目录 `~/.agents/skills` 作为一等矩阵列（`broadcast`），与各 Agent 列并列显式开放
-- **市场**：内置 Anthropic 官方技能库，支持自定义 git 技能源，浏览并一键安装
-- **一处更新**：git 来源 skill 的 `update / --check`，原位替换、无需重连
-- **收编（adopt）**：一键迁移散落在各 Agent 目录里的既有 skill，拷贝 / 移动两种模式
-- **安全**：`lint` 安装前扫描（frontmatter 完整性 + 脚本高危模式）、默认最小暴露、台账化安全卸载
-- **MCP bridge**：任何支持 MCP 的 Agent 都能消费中央仓库，同样受开关矩阵约束
-- **doctor 体检**：断链 / 漂移 / 同名遮蔽 / 孤儿链接，`--fix` 自动修复
-- **验证等级如实标注**：每个目标标出 实测 / 文档确认 / 未验证，不把未验证的能力呈现为已确认
+- **安装前安全扫描与默认阻断**：在文件落盘前深度扫描 `SKILL.md` 正文（提示词注入、隐藏 HTML 注释载荷、零宽字符混淆、Base64 动态执行、远程管道执行）与生命周期钩子，发现高危风险直接拒绝安装，可 `-f/--force` 强制放行
+- **全量物理目录审计与 CI 门禁**：`audit` 全量扫描各 Agent 物理目录，检出绕过 SkillPot 写入的未受管外部 skill 并审查安全隐患；支持 `--ci --fail-on <level>` 作为持续集成自动化门禁
+- **逐家实机验证证据表**：拒绝“虚标支持”，公开 8 家 Agent + 1 渠道的规范依据、发现路径、验证等级（实测 / 文档确认 / 未验证）与自动化探针脚本
+- **按目标精确开关**：`config.yaml` 驱动的 skill × 目标矩阵 + 软链接同步引擎；支持 TUI 矩阵可视化操作与 `skillpot gui` Web 控制台
+- **通用广播一等列**：跨工具共享目录 `~/.agents/skills` 作为一等矩阵列（`broadcast`），与各 Agent 列并列显式开放，绝不隐式污染
+- **一处安装与中央仓库**：中央仓库 `~/.skillpot/skills/` 存唯一真身，自包含解除嵌套依赖，自带 sha256 checksum 与版本锁
+- **团队配置一键对齐**：通过项目级 `.skillpot.yaml` 清单，团队成员执行 `skillpot sync` 即可实现全员 skill 与版本一致性
+- **一处更新与版本 diff**：git 来源 skill 原位更新，提供文件级变更差异对比，软链接无需重新绑定
+- **收编（adopt）**：一键迁移散落在各 Agent 目录里的既有 skill，提供拷贝与移动（symlink 替换）双模式
+- **MCP bridge**：任何支持 MCP 的 Agent 均可通过 stdio bridge 消费中央仓库，受 `SKILLPOT_AGENT` 身份环境变量与矩阵严格约束
+- **doctor 状态体检**：断链 / 漂移 / 同名遮蔽 / 孤儿链接全面体检，`--fix` 自动修复
+- **高并发原子写入与互斥锁**：临时文件写入 + rename 原子替换，跨进程文件互斥锁保证并发 `enable/disable` 状态一致性
 
 ## 工作原理
 
@@ -102,21 +104,28 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | `mcp` | 以 MCP server (stdio) 运行，供支持 MCP 的 Agent 消费 |
 | `tui [--once]` | 交互式开关矩阵；无 TTY 自动降级静态输出 |
 
-## 支持的 Agent
+## 逐家验证证据表（Verification Matrix）
 
-| Agent | 用户级 skills 目录 | 验证等级 | 依据 |
-|---|---|---|---|
-| Claude Code | `~/.claude/skills` | **实测** | symlink 探针经 `claude -p` 确认可被发现 |
-| ZCode | `~/.zcode/skills` | 文档确认 | 官方配置文档确认用户级发现路径 |
-| Codex CLI | `~/.codex/skills` | 文档确认 | 同规范样例（`.system` 内置 skill） |
-| OpenCode | `~/.config/opencode/skill` | 未验证 | 官方文档路径，待实机确认 |
-| Gemini CLI | `~/.gemini/skills` | 未验证 | 官方支持 Agent Skills，待实机确认 |
-| DeepSeek CLI (dsh) | `~/.dsh/skills` | 未验证 | 目录约定同 Claude；该目录的消费方待确认 |
-| Cursor | `~/.cursor/skills` | 未验证 | 官方 create-skill 技能明示路径，链接发现待实测 |
-| Amp | `~/.config/amp/skills` | 未验证 | 官方文档，链接发现待实测 |
-| **通用广播**（channel） | `~/.agents/skills` | 文档确认 | 跨工具共享约定（Vercel skills CLI 的 universal 位置，ZCode/Amp/Codex/OpenCode 等原生读取） |
+> 拒绝竞品式“宣称支持 N 家却无证据、频繁静默失效”。SkillPot 公开每一家 Agent 的规范来源、发现路径、验证等级与实机探针测试方法。
 
-**验证等级口径**以"该 Agent 能否发现 SkillPot 建立的链接"为准：`实测` = 真机确认过；`文档确认` = 路径有官方依据、链接发现未实测；`未验证` = 路径本身待确认。`skillpot agents` 会逐项打印等级与依据——`enable` 后 skill 静默不生效是最伤用户的失败模式，因此这里宁可低报。口径细则见 [docs/design/agent-adapters.md](./docs/design/agent-adapters.md)。
+| 目标标识 | Agent / 渠道 | 类型 | 用户级发现路径 | 验证等级 | 规范依据与验证证据 |
+|---|---|---|---|---|---|
+| `claude-code` | **Claude Code** | Agent | `~/.claude/skills` | **实测** `live` | Anthropic 官方 Agent Skills 标准；M0 实机探针经 `claude -p` 与交互会话确认生效 |
+| `gemini-cli` | **Gemini CLI / Antigravity** | Agent | `~/.gemini/skills` | **实测** `live` | Google 官方 Customization 规范；渐进式加载 `SKILL.md`，实机探针确认生效 |
+| `zcode` | **ZCode** | Agent | `~/.zcode/skills` | **文档确认** `docs` | 官方配置指南确认用户级路径与优先级；同时支持 `~/.agents/skills` 广播目录 |
+| `codex` | **Codex CLI** | Agent | `~/.codex/skills` | **文档确认** `docs` | 官方内置 `.system` 样例确认遵从 `SKILL.md` 标准；项目另读 `.codex/prompts` |
+| `opencode` | **OpenCode** | Agent | `~/.config/opencode/skill` | **文档确认** `docs` | 官方文档公开约定为单数 `skill/` 目录，完全兼容 Anthropic SKILL.md 格式 |
+| `cursor` | **Cursor** | Agent | `~/.cursor/skills` | **文档确认** `docs` | 官方文档与 `create-skill` 规则规范确认用户级与项目级目录约定 |
+| `amp` | **Amp** | Agent | `~/.config/amp/skills` | **文档确认** `docs` | 官方技能规范公告确认用户级与项目级目录多路并发扫描 |
+| `dsh` | **DeepSeek CLI** | Agent | `~/.dsh/skills` | **未验证** `unverified` | 目录结构与 Anthropic 对齐，但 0.1.2 运行时尚未完全收口动态扫描，纳管为前瞻性约定 |
+| `broadcast` | **通用广播（跨工具共享）** | 渠道 | `~/.agents/skills` | **文档确认** `docs` | 跨工具共享开放规范（Vercel `skills` CLI、ZCode、Antigravity、Amp 原生读取） |
+
+- **验证等级口径**以“该 Agent 能否发现 SkillPot 建立的链接”为唯一基准：
+  - **实测 (`live`)**：真机通过探针或真实会话确认能发现并触发链接；
+  - **文档确认 (`docs`)**：路径与格式有官方公开文档/插件明确支持，软链接发现待实机进一步打卡；
+  - **未验证 (`unverified`)**：路径或动态加载逻辑仍在演进中，纳管为前瞻性约定。
+- **自动化实机探针工具**：项目内置 [`scripts/verify-probe.sh`](./scripts/verify-probe.sh)，开发者可在安装对应 Agent 后执行 `bash scripts/verify-probe.sh <agent-id>` 进行自检与实测打卡。
+- 完整技术全案、遮蔽优先级与复现方法见 [docs/design/verification-matrix.md](./docs/design/verification-matrix.md) 与 [docs/design/agent-adapters.md](./docs/design/agent-adapters.md)。
 
 其他支持 MCP 的 Agent（Qoder、私有 harness…）可走 [MCP bridge](#mcp-bridgec-档兜底)。新增适配器方法见 [docs/design/agent-adapters.md](./docs/design/agent-adapters.md)。
 

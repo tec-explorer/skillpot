@@ -4,9 +4,9 @@
 [![npm](https://img.shields.io/npm/v/@tec-explorer/skillpot)](https://www.npmjs.com/package/@tec-explorer/skillpot)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-brightgreen.svg)](package.json)
 
-**The skill manager for coding agents — install once, expose per agent, update once.**
+**Cross-agent skill supply chain security & governance layer for coding agents — install once, expose per target, pre-install safety gate, full audit.**
 
-> Coding agents (Claude Code, ZCode, Codex, OpenCode, Gemini CLI, DeepSeek CLI, Cursor, Amp…) have converged on the same `SKILL.md` open standard, but each discovers skills from its own directory: a skill installed into `~/.claude/skills` only works for Claude Code. SkillPot keeps every skill in one central store and exposes it per agent via symlinks — with a switch matrix, consistency doctor, security lint, and team alignment.
+> Coding agents (Claude Code, ZCode, Codex, OpenCode, Gemini CLI, Cursor, Amp…) have converged on the same `SKILL.md` open standard, but face dual challenges: **supply chain security risks** (prompt injection, concealed payloads, unmanaged shadow skills) and **fragmented discovery paths**. SkillPot serves as a security and governance layer: blocking high-risk injections before disk write, offering full physical directory audits with CI gating, granular per-target exposure, and publishing an **honest, per-agent live verification matrix**.
 
 [中文文档](README.md) ｜ 📖 [Feature guide with screenshots](docs/guide.md)
 
@@ -14,20 +14,20 @@
 
 ## Why SkillPot
 
-Registries and marketplaces (skills.sh, Anthropic marketplace) answer *"where do I find skills"* — they are the **upstream**. SkillPot answers *"where does it install, who sees it, how do I stop it, how do I update it"* — the **management layer**:
+Registries and marketplaces (skills.sh, Anthropic marketplace) answer *"where do I find skills"* — they are the **upstream distribution**. SkillPot provides the **supply chain security & governance layer**:
 
-- **One central store** at `~/.skillpot/skills/` — a single source of truth with checksums and a lockfile
-- **Per-target switch matrix** — `config.yaml` drives a symlink sync engine; flip switches in the GUI, the TUI, or the CLI
-- **8 agents**: Claude Code, ZCode, Codex CLI, OpenCode, Gemini CLI, DeepSeek CLI (dsh), Cursor, Amp — plus the **universal broadcast column** (`~/.agents/skills/`) sitting in the matrix as a first-class target
-- **Honest verification levels** — every target is labelled *live-verified* / *docs-confirmed* / *unverified*, so nothing unproven is presented as working
-- **Doctor**: broken links, drift, shadowed names, orphaned links — `--fix` repairs automatically
-- **Security lint** on install: frontmatter integrity + dangerous script patterns (`rm -rf`, `curl | sh`, credential access, data exfiltration…)
-- **Adopt** existing skills scattered across agent directories (copy or move mode)
-- **Update** git-sourced skills in place (symlinks keep working, no re-linking) with file-level diffs
-- **Market**: browse and one-click install from built-in sources — Anthropic, Vercel, Superpowers, Matt Pocock — or any custom git repo; search the skills.sh directory anonymously
-- **Team alignment**: commit a `.skillpot.yaml` manifest, teammates run `skillpot sync` to match it
-- **MCP bridge**: any MCP-capable agent can consume the central store, still filtered by the switch matrix
-- **Crash- and race-safe state**: atomic writes (temp file + rename) and an inter-process lock around every read-modify-write of config/ledger
+- **Pre-install security gate**: Deep scans `SKILL.md` bodies for prompt injection, hidden HTML comment payloads, Unicode zero-width obfuscation, Base64 execution, and dynamic remote pipe fetches (`curl | sh`). Blocks on `error` before saving to disk unless forced (`-f`).
+- **Full directory audit & CI gate**: `skillpot audit` scans physical directories across all agents to detect unmanaged shadow skills bypassing SkillPot, and supports `--ci --fail-on <level>` with non-zero exit codes to guard deployment pipelines.
+- **Honest per-agent verification matrix**: Rejects unverified marketing claims. Publishes concrete verification evidence, specifications, and probe verification scripts for 8 agents + 1 broadcast channel.
+- **One central store** at `~/.skillpot/skills/` — a single source of truth with sha256 checksums and lockfile.
+- **Per-target switch matrix** — `config.yaml` drives a symlink sync engine; flip switches in the Web GUI, interactive TUI, or CLI.
+- **Universal broadcast column** (`~/.agents/skills/`) — treated as a first-class target (`broadcast`), requiring explicit opt-in (never polluted by `--for all`).
+- **Doctor**: Broken links, drift, shadowed names, orphaned links — `--fix` repairs automatically.
+- **Team alignment**: Commit a `.skillpot.yaml` manifest; teammates run `skillpot sync` to achieve deterministic configuration across machines.
+- **In-place updates & diff**: Git-sourced skills update in place with file-level diff output; symlinks stay valid without relinking.
+- **Adopt existing skills**: One-click migration of pre-existing skills across agent directories (copy or move mode).
+- **MCP bridge**: Any MCP-capable agent can consume the central store, constrained by `SKILLPOT_AGENT` identity and matrix policies.
+- **Crash- and race-safe state**: Atomic writes (temp file + rename) and an inter-process file lock around every state modification.
 
 ## Quick start
 
@@ -68,6 +68,29 @@ skillpot sync                     # align with a project .skillpot.yaml manifest
 Matrix columns come in two kinds: concrete **agents** (`claude-code`, `codex`, …) and the **universal broadcast** channel (`broadcast` → `~/.agents/skills/`). The channel is coarse-grained — every agent honouring that convention sees it and it cannot be switched off per agent — so it is never implied by `--for all`.
 
 Landing strategies per agent: **A** symlink (default) → **B** copy + resync (agents that don't follow symlinks) → **C** MCP bridge (universal fallback).
+
+## Per-Agent Verification Matrix
+
+> Rejects marketing claims without evidence. SkillPot publishes each agent's specification source, discovery path, verified status, and automated probe commands.
+
+| Target ID | Agent / Channel | Kind | User-level Discovery Path | Level | Specification Basis & Verification Evidence |
+|---|---|---|---|---|---|
+| `claude-code` | **Claude Code** | Agent | `~/.claude/skills` | **Live** `live` | Anthropic Agent Skills standard originator; live verified with `claude -p` and interactive sessions |
+| `gemini-cli` | **Gemini CLI / Antigravity** | Agent | `~/.gemini/skills` | **Live** `live` | Google Customization System; progressive disclosure of `SKILL.md`, verified via live probe |
+| `zcode` | **ZCode** | Agent | `~/.zcode/skills` | **Docs** `docs` | Official configuration guide confirms user-level path and priority; also consumes `~/.agents/skills` |
+| `codex` | **Codex CLI** | Agent | `~/.codex/skills` | **Docs** `docs` | Official `.system` sample confirms full `SKILL.md` adherence; workspace reads `.codex/prompts` |
+| `opencode` | **OpenCode** | Agent | `~/.config/opencode/skill` | **Docs** `docs` | Official docs define singular `skill/` path, 100% compatible with Anthropic SKILL.md format |
+| `cursor` | **Cursor** | Agent | `~/.cursor/skills` | **Docs** `docs` | Official docs & `create-skill` rules confirm user-level and project-level directories |
+| `amp` | **Amp** | Agent | `~/.config/amp/skills` | **Docs** `docs` | Official skill announcement confirms concurrent multi-path scanning (user & workspace) |
+| `dsh` | **DeepSeek CLI** | Agent | `~/.dsh/skills` | **Unverified** `unverified` | Directory aligned with Claude, but 0.1.2 runtime dynamic scanning pending final confirmation |
+| `broadcast` | **Universal Broadcast** | Channel | `~/.agents/skills` | **Docs** `docs` | Cross-tool shared convention (native to Vercel `skills` CLI, ZCode, Antigravity, Amp) |
+
+- **Verification Criteria**: Based solely on whether the agent discovers symlinks created by SkillPot:
+  - **Live (`live`)**: Confirmed via live probe command or interactive session.
+  - **Docs (`docs`)**: Official docs/plugins confirm path and format; live symlink discovery pending machine record.
+  - **Unverified (`unverified`)**: Convention emerging or dynamic loader under development.
+- **Automated Probe Tool**: Built-in [`scripts/verify-probe.sh`](./scripts/verify-probe.sh). Run `bash scripts/verify-probe.sh <agent-id>` to test and verify symlink discovery on any machine.
+- Detailed dossier and shadowing rules: [docs/design/verification-matrix.md](./docs/design/verification-matrix.md) and [docs/design/agent-adapters.md](./docs/design/agent-adapters.md).
 
 ## Documentation
 

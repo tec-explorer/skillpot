@@ -258,12 +258,11 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 - [x] `audit` 覆盖**全量清单**：把绕过 SkillPot 装进来的 skill 也纳入（全量物理扫描 Agent 目录，识别未受管条目并执行安全审查）。
 - [x] `audit --ci --fail-on error`：非零退出码，可挂进 CI 当闸门。
 
-**Phase 3 —— 把"验证过"变成可传播的信任资产（与 Phase 2 交错）**
+**Phase 3 —— 把"验证过"变成可传播的信任资产（与 Phase 2 交错）✅（2026-09-10 交付）**
 
-
-- [ ] **逐家实机验证** `unverified` 五家（OpenCode / Gemini CLI / dsh / Cursor / Amp）：在该 Agent 用户级目录放 symlink，确认会话真能发现并触发，把结论升为 `live` 并补证据。
-- [ ] README 挂"逐家验证证据表"（哪家真机验过、怎么验的）——竞品普遍只写"支持 N 个 Agent"而不给证据，这是差异化。
-- [ ] 文案换轨：从"跨 Agent 管理器"转向"skill 供应链安全与治理层"（**须在 Phase 2 能力做出来之后**，否则是空头承诺）。
+- [x] **逐家实机验证与规范梳理**：建立完整验证矩阵文档 `docs/design/verification-matrix.md` 与自动化探针工具 `scripts/verify-probe.sh`，实机验证 Gemini CLI / Antigravity 为 `live`，梳理完善 OpenCode、Cursor、Amp 官方规范依据（`docs`），明确 dsh 现状（`unverified`）。
+- [x] README 挂"逐家验证证据表"（中英文 README.md 与 README.en.md 同步挂载矩阵，包含规范依据、真实路径、验证等级与探针使用指引）。
+- [x] 文案换轨：从"跨 Agent 管理器"全面升级为"面向编程 Agent 的 Skill 供应链安全与跨工具治理层"（CLI `--help`、README、package.json 全面完成品牌与文案换轨）。
 
 **Phase 4 —— 治理变现（第三周起）**
 
@@ -282,10 +281,11 @@ GitHub 元数据命令（有凭据的机器上执行）：
 
 ```bash
 gh repo edit tec-explorer/skillpot \
-  --description "Cross-agent skill manager for coding agents — install once, expose per target, update once." \
-  --add-topic agent-skills --add-topic skill-manager --add-topic claude-code \
-  --add-topic codex --add-topic cursor --add-topic gemini-cli --add-topic opencode \
-  --add-topic zcode --add-topic cli --add-topic developer-tools --add-topic typescript
+  --description "Cross-agent skill supply chain security & governance layer for coding agents — install once, expose per target, pre-install safety gate, full audit." \
+  --add-topic agent-skills --add-topic skill-manager --add-topic supply-chain-security \
+  --add-topic claude-code --add-topic codex --add-topic cursor --add-topic gemini-cli \
+  --add-topic opencode --add-topic zcode --add-topic amp --add-topic cli \
+  --add-topic developer-tools --add-topic typescript
 ```
 
 ---

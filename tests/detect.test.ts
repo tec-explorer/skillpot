@@ -41,11 +41,15 @@ describe('agent detect', () => {
   it('验证等级如实标注：只有实测过的才标 live', () => {
     expect(getAgent('claude-code')!.verify).toBe('live');
     expect(detectAgent(getAgent('claude-code')!).verify).toBe('live');
-    // 路径有官方依据但未实机确认链接发现 → 不许标 live
-    expect(detectAgent(getAgent('opencode')!).verify).toBe('unverified');
-    expect(detectAgent(getAgent('amp')!).verify).toBe('unverified');
+    expect(getAgent('gemini-cli')!.verify).toBe('live');
+    expect(detectAgent(getAgent('gemini-cli')!).verify).toBe('live');
+    // 路径有官方依据但未实机确认链接发现 → 标 docs，不许标 live
+    expect(detectAgent(getAgent('opencode')!).verify).toBe('docs');
+    expect(detectAgent(getAgent('amp')!).verify).toBe('docs');
+    expect(detectAgent(getAgent('cursor')!).verify).toBe('docs');
+    expect(detectAgent(getAgent('dsh')!).verify).toBe('unverified');
     const liveIds = AGENTS.filter((a) => a.verify === 'live').map((a) => a.id);
-    expect(liveIds).toEqual(['claude-code']);
+    expect(liveIds).toEqual(['claude-code', 'gemini-cli']);
   });
 
   it('落地方式取自适配器（不再一律声称 symlink）', () => {

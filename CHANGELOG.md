@@ -3,6 +3,23 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.14.0] - 2026-09-10
+
+Phase 3 落地：把“验证过”变成可传播的信任资产与定位换轨——从“管理器”全面升级为“面向编程 Agent 的 Skill 供应链安全与跨工具治理层”。
+
+### Added
+- **逐家验证证据矩阵（`docs/design/verification-matrix.md`）**：
+  - 详尽收录 8 家 Agent + 1 渠道的规范依据、发现路径、验证等级与遮蔽规则。
+  - 公开透明判定基准：实测（`live`）、文档确认（`docs`）、未验证（`unverified`），绝不虚标。
+- **自动化实机探针测试工具（`scripts/verify-probe.sh`）**：
+  - 支持 `bash scripts/verify-probe.sh <agent-id>` 一键生成探针、建立链接、执行体检与审计验证。
+  - 实测确认 Google Antigravity / Gemini CLI（`gemini-cli`）渐进式加载 `SKILL.md` 有效，验证等级升为 `live`。
+- **中英文 README 挂载「逐家验证证据表」**：
+  - 中英文 README (`README.md` 与 `README.en.md`) 显著挂载验证总表与探针使用指引，构筑真实透明壁垒。
+- **品牌与定位文案换轨**：
+  - 升级为“面向编程 Agent 的 Skill 供应链安全与跨工具治理层”。
+  - 更新 CLI `--help`、`package.json` 描述与关键词、文档指南。
+
 ## [0.13.0] - 2026-09-10
 
 Phase 2 落地：把安全做成真本事——构建供应链安全与治理防线。
