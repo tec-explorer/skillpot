@@ -250,15 +250,16 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 
 ### 待办（已排期未开工）
 
-**Phase 2 —— 把安全做成真本事（核心投入，1–2 周）**
+**Phase 2 —— 把安全做成真本事（核心投入，1–2 周）✅（2026-09-10 交付）**
 
-- [ ] `lint` 扫描 **SKILL.md 正文**：提示词注入模板、隐藏 HTML 注释、base64/Unicode 混淆载荷、运行时远程拉取指令（`curl … | source`）、依赖触发式（postinstall 等价物）。当前 `lint` 只扫脚本扩展名文件，**恰好漏掉真实攻击的主载体**（Snyk ToxicSkills：36.8% skill 存在安全缺陷、13.4% 属 critical，91% 的恶意样本是"注入 + 恶意代码"组合）。
-- [ ] `lint` **默认阻断**（error 即拒绝安装，`--force` 放行），并把 lint 从安装后移到安装前（现为 `add.ts` 先安装、后 lint 且只告警）。
-- [ ] 回归语料：以 Snyk 开源的 mcp-scan 规则与公开恶意样本为起点，验收标准 = 恶意样本能抓住 + 头部正常 skill 不误报。
-- [ ] `audit` 覆盖**全量清单**：把绕过 SkillPot 装进来的 skill 也纳入（现只遍历 config 已登记项，"被绕过"反倒审计不到）。
-- [ ] `audit --ci --fail-on error`：非零退出码，可挂进 CI 当闸门。
+- [x] `lint` 扫描 **SKILL.md 正文**：提示词注入模板、隐藏 HTML 注释、base64/Unicode 混淆载荷、运行时远程拉取指令（`curl … | source`）、依赖触发式（postinstall 等价物）。
+- [x] `lint` **默认阻断**（error 即拒绝安装，`--force` 放行），并把 lint 从安装后移到安装前（`add.ts` 安装前检查，error 直接阻断拒绝落盘）。
+- [x] 回归语料：以 Snyk 开源的 mcp-scan 规则与公开恶意样本为起点，验收标准 = 恶意样本能抓住 + 头部正常 skill 不误报（全套 21 项用例见 `tests/lint-security.test.ts`）。
+- [x] `audit` 覆盖**全量清单**：把绕过 SkillPot 装进来的 skill 也纳入（全量物理扫描 Agent 目录，识别未受管条目并执行安全审查）。
+- [x] `audit --ci --fail-on error`：非零退出码，可挂进 CI 当闸门。
 
 **Phase 3 —— 把"验证过"变成可传播的信任资产（与 Phase 2 交错）**
+
 
 - [ ] **逐家实机验证** `unverified` 五家（OpenCode / Gemini CLI / dsh / Cursor / Amp）：在该 Agent 用户级目录放 symlink，确认会话真能发现并触发，把结论升为 `live` 并补证据。
 - [ ] README 挂"逐家验证证据表"（哪家真机验过、怎么验的）——竞品普遍只写"支持 N 个 Agent"而不给证据，这是差异化。

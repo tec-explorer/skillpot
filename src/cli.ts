@@ -195,9 +195,10 @@ program
     '安装 skill 到中央仓库（本地目录或 git URL；git 支持 repo#subdir。默认不对任何 Agent 开放）',
   )
   .option('-n, --name <name>', '指定 skill 名（默认取 frontmatter name 或目录名）')
+  .option('-f, --force', '跳过安全检查阻断，强制安装')
   .action(
-    run(async (source: string, opts: { name?: string }) => {
-      const res = await addSkill(source, { name: opts.name });
+    run(async (source: string, opts: { name?: string; force?: boolean }) => {
+      const res = await addSkill(source, { name: opts.name, force: opts.force });
       console.log(pc.green(`✔ 已安装 ${res.name}`));
       if (res.description) console.log(pc.dim(`  ${res.description.slice(0, 120)}`));
       for (const i of res.lint) {
@@ -220,6 +221,7 @@ program
       }
     }),
   );
+
 
 program
   .command('list')
@@ -338,47 +340,70 @@ program
   .command('audit')
   .description('审计：每个 Agent 实际生效的 skill、来源与被绕过/遮蔽情况')
   .option('--json', '以 JSON 输出')
+  .option('--ci', 'CI 模式（存在风险时非零退出码）')
+  .option('--fail-on <level>', '非零退出门禁级别：error（默认）或 warn')
   .action(
-    run((opts: { json?: boolean }) => {
+    run((opts: { json?: boolean; ci?: boolean; failOn?: string }) => {
       const report = runAudit();
+      const errorCount = report.agents.reduce(
+        (n, a) => n + a.findings.filter((f) => f.level === 'error').length,
+        0,
+      );
+      const warnCount = report.agents.reduce(
+        (n, a) => n + a.findings.filter((f) => f.level === 'warn').length,
+        0,
+      );
+
       if (opts.json) {
         console.log(JSON.stringify(report, null, 2));
-        return;
-      }
-      for (const a of report.agents) {
-        console.log(
-          pc.bold(`${a.agentName} (${a.agent})`) + ` — 实际生效 ${a.active.length} 个`,
-        );
-        if (a.active.length) {
+      } else {
+        for (const a of report.agents) {
           console.log(
-            renderTable(
-              ['Skill', '来源', '声明'],
-              a.active.map((e) => [
-                e.skill,
-                e.source.length > 64 ? e.source.slice(0, 61) + '…' : e.source,
-                e.enabled ? '开放' : pc.yellow('关闭（链接残留）'),
-              ]),
-            ),
+            pc.bold(`${a.agentName} (${a.agent})`) + ` — 实际生效 ${a.active.length} 个`,
           );
-        } else {
-          console.log(pc.dim('  （无生效 skill）'));
+          if (a.active.length) {
+            console.log(
+              renderTable(
+                ['Skill', '来源', '声明'],
+                a.active.map((e) => [
+                  e.skill,
+                  e.source.length > 64 ? e.source.slice(0, 61) + '…' : e.source,
+                  e.enabled ? '开放' : pc.yellow('关闭（链接残留）'),
+                ]),
+              ),
+            );
+          } else {
+            console.log(pc.dim('  （无生效 skill）'));
+          }
+          for (const e of a.external) {
+            console.log(pc.yellow(`⚠ 外部条目（非本工具创建）：${e.path}`));
+          }
+          for (const f of a.findings) {
+            console.log(f.level === 'error' ? pc.red(`✗ ${f.message}`) : pc.yellow(`⚠ ${f.message}`));
+          }
+          console.log();
         }
-        for (const e of a.external) {
-          console.log(pc.yellow(`⚠ 外部同名条目（非本工具创建）：${e.path}`));
-        }
-        for (const f of a.findings) {
-          console.log(f.level === 'error' ? pc.red(`✗ ${f.message}`) : pc.yellow(`⚠ ${f.message}`));
-        }
-        console.log();
+        const total = report.agents.reduce((n, a) => n + a.findings.length, 0);
+        console.log(
+          total
+            ? pc.yellow(
+                `审计完成，共 ${total} 条发现（${errorCount} error / ${warnCount} warn），详见上表`,
+              )
+            : pc.green('审计通过：各 Agent 实际生效状态与矩阵一致'),
+        );
       }
-      const total = report.agents.reduce((n, a) => n + a.findings.length, 0);
-      console.log(
-        total
-          ? pc.yellow(`审计完成，共 ${total} 条发现，详见上表`)
-          : pc.green('审计通过：各 Agent 实际生效状态与矩阵一致'),
-      );
+
+      if (opts.ci || opts.failOn) {
+        const threshold = (opts.failOn || 'error').toLowerCase();
+        if (threshold === 'warn' && (errorCount > 0 || warnCount > 0)) {
+          process.exitCode = 1;
+        } else if (threshold === 'error' && errorCount > 0) {
+          process.exitCode = 1;
+        }
+      }
     }),
   );
+
 
 function printIssues(issues: { level: string; message: string }[]): void {
   for (const i of issues) {

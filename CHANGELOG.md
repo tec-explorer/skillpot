@@ -3,7 +3,35 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.13.0] - 2026-09-10
+
+Phase 2 落地：把安全做成真本事——构建供应链安全与治理防线。
+
+### Added
+- **`lint` 扫描 SKILL.md 正文与生命周期钩子**：
+  - 提示词注入检测（Prompt Injection：忽略前序系统指令、规则覆写、越狱/开发者模式诱导，命中即 `error` 阻断）
+  - 隐藏 HTML 注释扫描（`<!-- ... -->` 内嵌注入指令或 curl/rm/eval/base64 等高危载荷，命中即 `error` 阻断；普通说明注释零误报）
+  - Unicode 零宽字符混淆与双向控制符（Zero-Width Characters / BiDi Override 隐蔽载荷，命中即 `error` 阻断）
+  - Base64 解码并执行载荷扫描（`base64 -d | sh`、`eval(atob(...))` 等，正文与脚本全覆盖）
+  - 运行时远程拉取执行指令（`curl/wget | source`、`source <(curl ...)`、`eval $(curl ...)` 等）
+  - 依赖生命周期钩子扫描（`package.json` 中的 `preinstall`/`postinstall` 恶意执行命令）
+- **安装前默认安全阻断**：
+  - `addSkill` 调整生命周期：在文件拷贝进中央仓库前先执行 lint 校验
+  - 发现 `error` 级别问题时中止安装，中央仓库不留文件、config 不登记、不建符号链接
+  - CLI `skillpot add` 与 GUI / 市场接口增加 `-f, --force` 选项支持显式强制放行
+- **`audit` 全量物理目录审计**：
+  - 覆盖各 Agent 物理目录中的全部子项，不再局限于中央仓库已登记项
+  - 识别绕过 SkillPot 手动放进 Agent 目录的未受管外部条目并汇报
+  - 对外部未受管条目执行安全审查，发现注入或恶意载荷直接升级为 `error` 报警
+- **`audit --ci --fail-on <level>` 自动化门禁**：
+  - 支持挂载到 CI/CD 流程作为安全卡点
+  - `--ci` 或 `--fail-on error` 在存在 error 级安全发现时退出码为 1
+  - `--fail-on warn` 在存在 warn 或 error 时均以退出码 1 退出
+- **安全回归测试语料库（`tests/lint-security.test.ts`）**：
+  - 覆盖注入、隐藏注释、零宽混淆、远程动态执行、恶意 package 钩子及合法头部 skill 零误报等 21 项自动化用例
+
 ## [0.12.0] - 2026-09-10
+
 
 一轮"让产品说的话与做的事一致"的诚实性修复 + 通用广播列升为一等目标。
 

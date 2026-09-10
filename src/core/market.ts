@@ -144,13 +144,14 @@ export async function scanSource(url: string, opts: { refresh?: boolean } = {}):
 export async function installFromMarket(
   url: string,
   subdir: string,
-  opts: { name?: string; for?: string[] } = {},
+  opts: { name?: string; for?: string[]; force?: boolean } = {},
 ): Promise<AddResult> {
   if (!subdir || subdir.includes('..') || subdir.startsWith('/')) {
     throw new Error(`非法子目录：${subdir}`);
   }
-  return addSkill(`${url}#${subdir}`, { name: opts.name, for: opts.for });
+  return addSkill(`${url}#${subdir}`, { name: opts.name, for: opts.for, force: opts.force });
 }
+
 
 // —— skills.sh 目录（匿名 /api/search，与官方 npx skills CLI 同源）——
 

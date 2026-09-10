@@ -152,7 +152,7 @@ export async function handleApiRequest(
       return { status: 200, body: report };
     }
     if (method === 'POST' && pathname === '/api/add') {
-      const b = (body ?? {}) as { source?: unknown; name?: unknown; for?: unknown };
+      const b = (body ?? {}) as { source?: unknown; name?: unknown; for?: unknown; force?: unknown };
       if (typeof b.source !== 'string') {
         return { status: 400, body: { error: '需要 source 字段（本地目录或 git URL）' } };
       }
@@ -161,9 +161,12 @@ export async function handleApiRequest(
         for: Array.isArray(b.for)
           ? (b.for.filter((x) => typeof x === 'string') as string[])
           : undefined,
+        force: b.force === true,
       });
       return { status: 200, body: result };
     }
+
+
     if (method === 'GET' && pathname.startsWith('/api/skill/')) {
       const name = decodeURIComponent(pathname.slice('/api/skill/'.length));
       const detail = readSkillDetail(name);
@@ -256,7 +259,13 @@ export async function handleApiRequest(
       return { status: 200, body: result };
     }
     if (method === 'POST' && pathname === '/api/market/install') {
-      const b = (body ?? {}) as { url?: unknown; subdir?: unknown; name?: unknown; for?: unknown };
+      const b = (body ?? {}) as {
+        url?: unknown;
+        subdir?: unknown;
+        name?: unknown;
+        for?: unknown;
+        force?: unknown;
+      };
       if (typeof b.url !== 'string' || typeof b.subdir !== 'string') {
         return { status: 400, body: { error: '需要 url 与 subdir 字段' } };
       }
@@ -265,9 +274,12 @@ export async function handleApiRequest(
         for: Array.isArray(b.for)
           ? (b.for.filter((x) => typeof x === 'string') as string[])
           : undefined,
+        force: b.force === true,
       });
       return { status: 200, body: result };
     }
+
+
     if (method === 'GET' && pathname === '/api/doctor') {
       return { status: 200, body: { issues: runDoctor() } };
     }

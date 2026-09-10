@@ -1,6 +1,6 @@
 {
   "name": "@tec-explorer/skillpot",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Cross-agent skill manager: install once, expose per coding agent (Claude Code / ZCode / Codex / OpenCode / Gemini CLI / DeepSeek CLI / Cursor / Amp) or to the ~/.agents/skills cross-tool broadcast directory.",
   "repository": {
     "type": "git",

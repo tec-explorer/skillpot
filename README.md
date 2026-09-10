@@ -84,19 +84,20 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 |---|---|
 | `init` | 初始化中央仓库 + Agent 检测（空仓库时触发收编提醒） |
 | `agents [--json]` | 检测本机编程 Agent（PATH 二进制 + 配置目录指纹）与各目标验证等级 |
-| `add <dir\|git[#subdir]> [-n 名字]` | 安装 skill（自动 lint） |
+| `add <dir\|git[#subdir]> [-n 名字] [-f]` | 安装 skill（安装前安全 lint 默认阻断，`-f` 强制放行） |
 | `list [-a agent\|broadcast]` | 已装 skill 清单与开放状态 / 某目标的可见列表 |
 | `enable <skill> -f a,b\|all` | 开放（建 symlink）；`broadcast` 为通用广播列，`all` 不含它 |
 | `disable <skill> -f a,b\|all` | 关闭（撤 symlink） |
 | `adopt [--from agents] [-f agents] [--move] [--dry-run]` | 收编已有 skill；`--move` 移动模式 |
 | `remove <skill>` | 卸载（撤下所有链接 + 删除文件） |
 | `doctor [--fix]` | 体检与自动修复 |
-| `audit [--json]` | 审计：各 Agent 实际生效 skill、来源与被绕过/遮蔽 |
-| `lint [skill] [--strict]` | 安全与质量检查：frontmatter + 脚本高危模式 |
+| `audit [--json] [--ci] [--fail-on <level>]` | 审计：全量实际生效/未受管 skill、来源、安全隐患与 CI 门禁 |
+| `lint [skill] [--strict]` | 安全与质量检查：正文提示词注入、隐藏注释、Unicode 混淆、脚本高危模式 |
 | `update [skill] [--check]` | 检查/应用 git 来源 skill 的更新 |
 | `gui [--port] [--host] [--no-open]` | Web 控制台：开关矩阵/体检/收编/安装/市场/维护 |
 | `market [url] [--refresh]` | 浏览技能源里的 skill（缺省扫描全部源） |
 | `sync [--file] [--export] [--dry-run]` | 团队对齐：按项目清单 `.skillpot.yaml` 安装/对齐 skill |
+
 | `source list\|add <url>\|remove <url>` | 市场源管理（内置官方源 + 自定义 git 源） |
 | `mcp` | 以 MCP server (stdio) 运行，供支持 MCP 的 Agent 消费 |
 | `tui [--once]` | 交互式开关矩阵；无 TTY 自动降级静态输出 |
@@ -160,13 +161,15 @@ skillpot sync           # 按 ./.skillpot.yaml 对齐；--dry-run 先预览
 Skill 是注入模型上下文的指令 + 可携带可执行脚本。SkillPot 的默认安全姿态：
 
 - `add` / `adopt` 之后**不开放给任何目标**，由用户显式选择
-- 安装时自动 `lint`：frontmatter 完整性、脚本高危模式（`rm -rf`、`curl|sh`、`sudo`、凭据读取、外发数据…）
+- **安装前安全扫描与默认阻断**：在文件落盘前深度扫描 `SKILL.md` 正文（提示词注入、隐藏 HTML 恶意载荷、Unicode 零宽混淆、Base64 动态执行、运行时远程拉取指令）与生命周期钩子，发现 `error` 级缺陷直接拒绝安装（不污染中央仓库），需显式使用 `--force` (`-f`) 强制放行
+- **全量物理目录审计与 CI 门禁**：`audit` 全量遍历 Agent 物理目录，检出未受管外部条目并执行安全审查；支持 `--ci` / `--fail-on` 在发现风险时以非零退出码阻断流水线
 - 卸载/禁用只动 `state.json` 台账内的链接，绝不触碰用户自建内容
 - 拷贝解引用 symlink，仓库自包含，不依赖来源机器的链接目标
 - 通用广播列**不并入 `--for all`**：它写进跨工具共享目录、对所有支持该约定的 Agent 可见且无法按 Agent 单独撤销，只能显式开放（TUI 整行开关跳过该列，GUI 批量操作带二次确认）
 - MCP bridge 的身份以 `SKILLPOT_AGENT` 环境变量为准，tool 参数无法放宽 `read/list/search` 的可见范围
 - 写入原子化（临时文件 + rename）并对"读 config → 改 → 写回"加进程间互斥锁，避免并发 `enable` 互相覆盖台账
 - Web 控制台仅监听 `127.0.0.1`，写操作需携带启动时生成的随机 token（`--host 0.0.0.0` 局域网模式下读取也强制认证）
+
 
 漏洞报告请走 [SECURITY.md](./SECURITY.md)，勿用公开 Issue。
 

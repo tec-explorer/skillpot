@@ -76,7 +76,13 @@ Landing strategies per agent: **A** symlink (default) → **B** copy + resync (a
 
 ## Security
 
-Skills are instructions injected into model context plus optionally executable scripts. SkillPot's defaults: install lints before exposing, nothing is exposed to any target until you say so, uninstall/disable only touches ledgered paths, and the web console listens on 127.0.0.1 with token-gated writes.
+Skills are instructions injected into model context plus optionally executable scripts. SkillPot's defaults:
+
+- **Pre-install security block**: deep scans `SKILL.md` body (prompt injection, hidden HTML comment payloads, Unicode zero-width obfuscation, Base64 exec, dynamic remote fetch) and lifecycle hooks; blocks on `error` before saving to disk unless `--force` (`-f`) is given.
+- **Full audit & CI gate**: `audit` scans all physical files across agent directories for unmanaged skills; supports `--ci` / `--fail-on <level>` with non-zero exit code as CI gates.
+- Install lints before exposing; nothing is exposed to any target until you say so.
+- Uninstall/disable only touches ledgered paths.
+- Web console listens on 127.0.0.1 with token-gated writes.
 
 Two defaults worth knowing about:
 
@@ -84,6 +90,7 @@ Two defaults worth knowing about:
 - The **MCP bridge fixes agent identity via the `SKILLPOT_AGENT` env var**; a `tools/call` argument cannot widen what `list`, `search`, or `read` can see.
 
 Report vulnerabilities via [SECURITY.md](SECURITY.md).
+
 
 ## Development
 

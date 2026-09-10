@@ -110,7 +110,7 @@ function applyExpose(name: string, expose?: Record<string, boolean>): string[] {
 
 export async function syncManifest(
   file: string,
-  opts: { dryRun?: boolean } = {},
+  opts: { dryRun?: boolean; force?: boolean } = {},
 ): Promise<SyncItem[]> {
   const manifest = loadManifest(file);
   const config = loadConfig();
@@ -142,7 +142,13 @@ export async function syncManifest(
           out.push({ skill: name, action: 'install', dryRun: true });
           continue;
         }
-        const r = await addSkill(src, { name, for: Object.entries(entry.expose ?? {}).filter(([, v]) => v === true).map(([a]) => a) });
+        const r = await addSkill(src, {
+          name,
+          for: Object.entries(entry.expose ?? {})
+            .filter(([, v]) => v === true)
+            .map(([a]) => a),
+          force: opts.force,
+        });
         let detail = r.checksum === entry.checksum ? undefined : '已安装，但与清单 checksum 不一致（远端可能已更新）';
         out.push({ skill: name, action: 'install', detail });
         continue;
@@ -169,7 +175,14 @@ export async function syncManifest(
           continue;
         }
         uninstallSkill(name);
-        const r = await addSkill(src, { name, for: Object.entries(entry.expose ?? {}).filter(([, v]) => v === true).map(([a]) => a) });
+        const r = await addSkill(src, {
+          name,
+          for: Object.entries(entry.expose ?? {})
+            .filter(([, v]) => v === true)
+            .map(([a]) => a),
+          force: opts.force,
+        });
+
         out.push({
           skill: name,
           action: 'reinstall',
