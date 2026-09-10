@@ -196,6 +196,73 @@ MCP_READ="$(printf '%s\n%s\n' \
   | SKILLPOT_AGENT=codex $CLI mcp 2>/dev/null)"
 echo "$MCP_READ" | grep -q '未对 codex 开放' && echo "ok: read 未开放时拒绝（无读取旁路）"
 
+echo "== Phase 4 企业策略与私有 Registry =="
+POLICY_FILE="$SB/test-policy.yaml"
+$CLI policy init -f "$POLICY_FILE" | grep -q "已生成策略文件模板"
+test -f "$POLICY_FILE"
+echo "ok: policy init 生成模板"
+
+cat > "$POLICY_FILE" <<EOF
+version: 1
+name: e2e-policy
+mode: strict
+registry:
+  url: https://registry.corp.internal/api
+  token_env: CORP_TOKEN
+  force_private: true
+enforce:
+  - name: company-guardrail
+    source: $REPO
+    for: claude-code
+deny:
+  - name: "*forbidden*"
+    reason: "高危禁止"
+targets:
+  broadcast:
+    allow: false
+EOF
+
+set +e
+$CLI policy check -p "$POLICY_FILE" --ci > "$SB/policy-check.out" 2>&1
+P_CODE=$?
+set -e
+test $P_CODE -ne 0
+grep -q "合规缺失" "$SB/policy-check.out"
+echo "ok: policy check 检出合规缺失"
+
+FORBIDDEN_DIR="$SB/my-forbidden-tool"
+mkdir -p "$FORBIDDEN_DIR"
+cat > "$FORBIDDEN_DIR/SKILL.md" <<'EOF'
+---
+name: my-forbidden-tool
+description: Denied tool.
+---
+# Denied
+EOF
+set +e
+$CLI add "$FORBIDDEN_DIR" -p "$POLICY_FILE" > "$SB/deny-add.out" 2>&1
+DENY_CODE=$?
+set -e
+test $DENY_CODE -ne 0
+grep -q "命中组织禁用黑名单" "$SB/deny-add.out"
+echo "ok: add 阻断命中策略黑名单的技能"
+
+set +e
+$CLI enable git-skill --for broadcast -p "$POLICY_FILE" > "$SB/deny-enable.out" 2>&1
+ENABLE_CODE=$?
+set -e
+test $ENABLE_CODE -ne 0
+grep -q "组织策略严禁向目标 'broadcast' 开放技能" "$SB/deny-enable.out"
+echo "ok: enable 阻断开放至被禁用的渠道"
+
+$CLI policy apply -p "$POLICY_FILE" | grep -q "已安装强制技能 'company-guardrail'"
+$CLI policy check -p "$POLICY_FILE" | grep -q "所有合规基线与安全限制均已满足"
+echo "ok: policy apply 自动补齐强制基线并达成合规"
+
+$CLI registry -p "$POLICY_FILE" | grep -q "https://registry.corp.internal/api"
+$CLI registry -p "$POLICY_FILE" | grep -q "force_private"
+echo "ok: registry 正确展示策略私有终端配置"
+
 echo "== tui（非 TTY 自动静态输出）=="
 $CLI tui --once | grep -q "legacy-skill"
 $CLI tui --once | grep -q "✓"

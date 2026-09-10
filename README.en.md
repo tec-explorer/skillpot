@@ -27,6 +27,7 @@ Registries and marketplaces (skills.sh, Anthropic marketplace) answer *"where do
 - **In-place updates & diff**: Git-sourced skills update in place with file-level diff output; symlinks stay valid without relinking.
 - **Adopt existing skills**: One-click migration of pre-existing skills across agent directories (copy or move mode).
 - **MCP bridge**: Any MCP-capable agent can consume the central store, constrained by `SKILLPOT_AGENT` identity and matrix policies.
+- **Enterprise policy & private registry**: Declare organizational policy in `skillpot.policy.yaml` (enforce baseline skills, deny blacklist patterns, source whitelisting, and JFrog / Vercel private registry token integration with `--ci` gate).
 - **Crash- and race-safe state**: Atomic writes (temp file + rename) and an inter-process file lock around every state modification.
 
 ## Quick start
@@ -47,6 +48,8 @@ skillpot doctor                   # consistency check (--fix to repair)
 skillpot search "commit message"  # search the skills.sh directory
 skillpot install-search anthropics/skills/pdf   # install a directory result
 skillpot sync                     # align with a project .skillpot.yaml manifest
+skillpot policy check             # verify organizational policy compliance
+skillpot registry                 # show private registry and token status
 ```
 
 > Agents scan their skill directories at session start — restart a session after enable/disable.
@@ -95,7 +98,7 @@ Landing strategies per agent: **A** symlink (default) → **B** copy + resync (a
 ## Documentation
 
 - [Feature guide (screenshots)](docs/guide.md) — Chinese, with screenshots of every surface
-- [Design: agent adapters](docs/design/agent-adapters.md) · [Design: MCP bridge](docs/design/mcp-bridge.md) · [Product plan](docs/product/product-plan.md)
+- [Design: agent adapters](docs/design/agent-adapters.md) · [Design: MCP bridge](docs/design/mcp-bridge.md) · [Design: Enterprise policy](docs/design/enterprise-policy.md) · [Product plan](docs/product/product-plan.md)
 
 ## Security
 

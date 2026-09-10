@@ -3,6 +3,35 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.15.0] - 2026-09-10
+
+Phase 4 落地：企业级策略治理与私有 Registry 对接——将管理层推向组织级 Policy-as-Code 与资产闭环。
+
+### Added
+- **企业策略引擎（`skillpot.policy.yaml`）**：
+  - 支持 `mode: strict`（默认阻断）与 `mode: audit`（告警审查）双运行模式。
+  - **合规基线强制开启（`enforce`）**：组织级强制安装指定的必要技能，支持锁定内容哈希校验（防篡改）并自动开放至目标 Agent（`targets: ["all"]` 或具体 Agent 列表）。
+  - **高危技能全组织禁用（`deny`）**：支持通配符模式（如 `*crypto*`、`malicious-*`）与特定投毒版本哈希黑名单阻断。
+  - **来源白名单管控（`allowed_sources`）**：限制只允许从企业内部 Git 源、私有 Registry 或本地路径安装技能。
+  - **渠道与目标治理（`targets`）**：支持禁用 `broadcast` 全局广播暴露，或限定只允许向受管 Agent 开放。
+- **策略 CLI 工具集（`skillpot policy`）**：
+  - `skillpot policy init`：一键生成企业策略标准模板。
+  - `skillpot policy check [--ci]`：审查当前仓库合规性，违规自动抛出非零退出码。
+  - `skillpot policy apply [--dry-run]`：自动修复并对齐组织基线（卸载黑名单技能、收回禁用渠道、自动安装并开放 enforce 技能）。
+- **运行时拦截防线**：
+  - `skillpot add`：在安装前校验来源白名单与 deny 黑名单，严防违规技能落盘。
+  - `skillpot enable`：在开放前校验目标渠道限制与 deny 黑名单，杜绝违规暴露。
+  - `skillpot audit`：全量审计联动策略违规报告，整合至 Agent findings 与 `--ci` 门禁。
+- **私有 Registry 适配与鉴权**：
+  - 兼容 JFrog Artifactory Agent Skills Registry 与 Vercel `SKILLS_API_URL` 规范。
+  - 自动注入 `Authorization: Bearer <TOKEN>` 认证头。
+  - 支持 `force_private: true` 私有锁定模式，阻断非授权公共源查询。
+  - 新增 `skillpot registry` 状态查看命令。
+- **架构设计文档**：
+  - 新增 `docs/design/enterprise-policy.md`。
+- **自动化测试套件**：
+  - 新增 `tests/policy.test.ts`（15 项）与 `tests/private-registry.test.ts`（7 项），端到端 E2E 沙箱全面覆盖策略与私有 Registry 流程。
+
 ## [0.14.0] - 2026-09-10
 
 Phase 3 落地：把“验证过”变成可传播的信任资产与定位换轨——从“管理器”全面升级为“面向编程 Agent 的 Skill 供应链安全与跨工具治理层”。

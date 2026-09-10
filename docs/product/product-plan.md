@@ -264,10 +264,10 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 - [x] README 挂"逐家验证证据表"（中英文 README.md 与 README.en.md 同步挂载矩阵，包含规范依据、真实路径、验证等级与探针使用指引）。
 - [x] 文案换轨：从"跨 Agent 管理器"全面升级为"面向编程 Agent 的 Skill 供应链安全与跨工具治理层"（CLI `--help`、README、package.json 全面完成品牌与文案换轨）。
 
-**Phase 4 —— 治理变现（第三周起）**
+**Phase 4 —— 治理变现（第三周起）✅（2026-09-10 交付）**
 
-- [ ] 策略文件：合规 skill 全员强制开启、高危 skill 全组织禁用。
-- [ ] 私有 registry 对接（Vercel 留了 `SKILLS_API_URL` 口子但策略强制没做扎实；JFrog 已出 Agent Skills Registry）。
+- [x] 策略文件：合规 skill 全员强制开启、高危 skill 全组织禁用、来源白名单、广播与 Agent 渠道限制、CI 门禁与自动修复 (`skillpot policy check/apply/init`)。
+- [x] 私有 registry 对接：兼容 JFrog Agent Skills Registry 与 Vercel `SKILLS_API_URL` 规范，支持 Bearer Token 自动注入、`force_private` 私有锁定与 `skillpot registry` 状态命令。
 
 **零散待办**
 

@@ -3,8 +3,9 @@ import path from 'node:path';
 import { agentHome, skillDir } from '../paths';
 import { loadConfig, loadState, saveConfig, saveState } from './config';
 import { BROADCAST_AGENT_ID, allAgentIds, allTargetIds, getAgent, isChannel } from '../agents/registry';
-import { SkillPotConfig, SkillPotState } from '../types';
+import { SkillPotConfig, SkillPotPolicy, SkillPotState } from '../types';
 import { withLockSync } from '../util/fsx';
+import { checkEnableAllowed, loadPolicy } from './policy';
 
 export interface SkippedItem {
   agent: string;
@@ -224,7 +225,16 @@ function disableOne(
  * 只创建/接管本工具的链接；遇到真实同名目录（可能是用户自装的同名 skill）一律跳过并告警。
  * 单个目标失败（权限/IO）只影响该目标，其余目标与台账照常落盘。
  */
-export function enableSkill(skill: string, agentIds: string[]): SyncResult {
+export function enableSkill(
+  skill: string,
+  agentIds: string[],
+  opts?: { policy?: SkillPotPolicy | null },
+): SyncResult {
+  const policy = opts?.policy !== undefined ? opts.policy : loadPolicy()?.policy;
+  if (policy) {
+    checkEnableAllowed(skill, agentIds, policy);
+  }
+
   return withLockSync(() => {
     const src = skillDir(skill);
     if (!fs.existsSync(path.join(src, 'SKILL.md'))) {

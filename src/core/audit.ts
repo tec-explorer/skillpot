@@ -40,12 +40,16 @@ export interface AgentAudit {
   findings: AuditFinding[];
 }
 
+import { PolicyCheckResult, SkillPotPolicy } from '../types';
+import { checkPolicy, loadPolicy } from './policy';
+
 export interface AuditReport {
   agents: AgentAudit[];
+  policyResult?: PolicyCheckResult | null;
   generatedAt: string;
 }
 
-export function runAudit(): AuditReport {
+export function runAudit(opts: { policyFile?: string; policy?: SkillPotPolicy | null } = {}): AuditReport {
   const matrix = deriveMatrix();
   const config = loadConfig();
   const agents: AgentAudit[] = [];
@@ -170,6 +174,41 @@ export function runAudit(): AuditReport {
     });
   }
 
-  return { agents, generatedAt: new Date().toISOString() };
+  // 3. 组织策略合规审查（Phase 4: Policy Compliance）
+  let policyResult: PolicyCheckResult | null = null;
+  const loaded =
+    opts.policy !== undefined
+      ? opts.policy
+        ? { policy: opts.policy, file: opts.policyFile || 'memory' }
+        : null
+      : loadPolicy(opts.policyFile);
+
+  if (loaded) {
+    policyResult = checkPolicy(loaded.policy, loaded.file);
+    // 把策略违规映射到 Agent 发现中，以便 CI 门禁（--ci / --fail-on）无缝覆盖
+    for (const v of policyResult.violations) {
+      if (v.target) {
+        const ag = agents.find((x) => x.agent === v.target);
+        if (ag) {
+          ag.findings.push({
+            level: v.severity,
+            agent: v.target,
+            message: `[策略合规] ${v.message}`,
+          });
+        }
+      } else {
+        // 全局/非特定目标的违规（如缺失强制技能或禁用技能未指明特定目标），记录到首个有效 agent
+        if (agents.length > 0) {
+          agents[0].findings.push({
+            level: v.severity,
+            agent: agents[0].agent,
+            message: `[策略合规] ${v.message}`,
+          });
+        }
+      }
+    }
+  }
+
+  return { agents, policyResult, generatedAt: new Date().toISOString() };
 }
 

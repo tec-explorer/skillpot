@@ -7,7 +7,7 @@ import { marketCacheDir } from '../paths';
 import { loadConfig, saveConfig } from './config';
 import { readSkillMeta } from '../util/frontmatter';
 import { addSkill, isGitSource, AddResult } from './add';
-import { ConfigSource } from '../types';
+import { ConfigSource, RegistryStatus, SkillPotPolicy } from '../types';
 
 const execFileP = promisify(execFile);
 
@@ -153,7 +153,7 @@ export async function installFromMarket(
 }
 
 
-// —— skills.sh 目录（匿名 /api/search，与官方 npx skills CLI 同源）——
+// —— Registry 目录（默认公共 skills.sh，支持企业/私有 Registry 如 JFrog 与 Vercel SKILLS_API_URL）——
 
 export interface DirectorySkill {
   /** 形如 owner/repo/slug */
@@ -164,14 +164,88 @@ export interface DirectorySkill {
   installs: number;
 }
 
-/** 在 skills.sh 目录中搜索 skill（匿名，无需 token） */
-export async function searchDirectory(query: string, limit = 20): Promise<DirectorySkill[]> {
+export interface ResolvedRegistryConfig {
+  url: string;
+  token?: string;
+  tokenSource?: string;
+  isPrivate: boolean;
+  forcePrivate: boolean;
+}
+
+/**
+ * 解析当前生效的 Registry 终端与认证 Token
+ * 优先级：策略文件配置 > 环境变量 SKILLPOT_REGISTRY_URL > 环境变量 SKILLS_API_URL > 默认 https://skills.sh
+ */
+export function resolveRegistryConfig(policy?: SkillPotPolicy | null): ResolvedRegistryConfig {
+  let url = 'https://skills.sh';
+  let isPrivate = false;
+  let forcePrivate = Boolean(policy?.registry?.force_private);
+
+  if (policy?.registry?.url) {
+    url = policy.registry.url.replace(/\/+$/, '');
+    isPrivate = true;
+  } else if (process.env.SKILLPOT_REGISTRY_URL) {
+    url = process.env.SKILLPOT_REGISTRY_URL.replace(/\/+$/, '');
+    isPrivate = true;
+  } else if (process.env.SKILLS_API_URL) {
+    url = process.env.SKILLS_API_URL.replace(/\/+$/, '');
+    isPrivate = true;
+  }
+
+  let token: string | undefined;
+  let tokenSource: string | undefined;
+
+  if (policy?.registry?.token_env && process.env[policy.registry.token_env]) {
+    token = process.env[policy.registry.token_env];
+    tokenSource = `env:${policy.registry.token_env}`;
+  } else if (policy?.registry?.token) {
+    token = policy.registry.token;
+    tokenSource = 'policy:token';
+  } else if (process.env.SKILLPOT_REGISTRY_TOKEN) {
+    token = process.env.SKILLPOT_REGISTRY_TOKEN;
+    tokenSource = 'env:SKILLPOT_REGISTRY_TOKEN';
+  } else if (process.env.SKILLS_TOKEN) {
+    token = process.env.SKILLS_TOKEN;
+    tokenSource = 'env:SKILLS_TOKEN';
+  }
+
+  return { url, token, tokenSource, isPrivate, forcePrivate };
+}
+
+/** 获取 Registry 当前状态信息 */
+export function getRegistryStatus(policy?: SkillPotPolicy | null): RegistryStatus {
+  const cfg = resolveRegistryConfig(policy);
+  return {
+    url: cfg.url,
+    isPrivate: cfg.isPrivate,
+    hasToken: Boolean(cfg.token),
+    tokenSource: cfg.tokenSource,
+    forcePrivate: cfg.forcePrivate,
+  };
+}
+
+/** 在 Registry 目录中搜索 skill（支持私有 Registry 认证） */
+export async function searchDirectory(
+  query: string,
+  limit = 20,
+  opts: { policy?: SkillPotPolicy | null } = {},
+): Promise<DirectorySkill[]> {
   const q = query.trim();
   if (!q) throw new Error('搜索词不能为空');
-  const res = await fetch(
-    `https://skills.sh/api/search?q=${encodeURIComponent(q)}&limit=${Math.min(Math.max(limit, 1), 200)}`,
-  );
-  if (!res.ok) throw new Error(`skills.sh 搜索失败：HTTP ${res.status}`);
+
+  const cfg = resolveRegistryConfig(opts.policy);
+  if (cfg.forcePrivate && !cfg.isPrivate) {
+    throw new Error('策略已开启 force_private，禁止访问公共 skills.sh 目录；请配置企业私有 Registry');
+  }
+
+  const endpoint = `${cfg.url}/api/search?q=${encodeURIComponent(q)}&limit=${Math.min(Math.max(limit, 1), 200)}`;
+  const headers: Record<string, string> = {};
+  if (cfg.token) {
+    headers['Authorization'] = `Bearer ${cfg.token}`;
+  }
+
+  const res = await fetch(endpoint, { headers });
+  if (!res.ok) throw new Error(`Registry 搜索失败 (${cfg.url})：HTTP ${res.status}`);
   const data = (await res.json()) as {
     skills?: { id?: string; name?: string; installs?: number; source?: string }[];
   };

@@ -9,6 +9,8 @@ import { installFromLocal } from './store';
 import { enableSkill } from './sync';
 import { lintSkill, LintIssue } from './lint';
 import { withLockSync } from '../util/fsx';
+import { SkillPotPolicy } from '../types';
+import { checkAddAllowed, loadPolicy } from './policy';
 
 const execFileP = promisify(execFile);
 
@@ -29,6 +31,8 @@ export interface AddOptions {
   for?: string[];
   /** 跳过安全检查阻断，强制安装（默认遇到 error 级问题直接拒绝） */
   force?: boolean;
+  /** 组织安全治理策略（缺省自动查找） */
+  policy?: SkillPotPolicy | null;
 }
 
 export interface AddResult {
@@ -50,6 +54,14 @@ export async function addSkill(source: string, opts: AddOptions = {}): Promise<A
   if (!source || !source.trim()) throw new Error('缺少来源：本地目录或 git URL');
   initStore();
   const isGit = isGitSource(source);
+  const canonicalSource = isGit ? `git:${source}` : `local:${path.resolve(source)}`;
+
+  // —— 组织安全治理策略前置检查 ——
+  const policyObj = opts.policy !== undefined ? opts.policy : loadPolicy()?.policy;
+  const preName = opts.name || path.basename(source.split('#')[0].replace(/\.git$/, ''));
+  if (policyObj) {
+    checkAddAllowed(preName, canonicalSource, undefined, policyObj, { force: opts.force });
+  }
 
   let srcDir: string;
   let tmpCloneDir: string | undefined;
@@ -97,11 +109,21 @@ export async function addSkill(source: string, opts: AddOptions = {}): Promise<A
     if (tmpCloneDir) fs.rmSync(tmpCloneDir, { recursive: true, force: true });
   }
 
+  // 校验最终实际 skill 真实元数据是否合规
+  if (policyObj) {
+    try {
+      checkAddAllowed(res.name, canonicalSource, res.checksum, policyObj, { force: opts.force });
+    } catch (e) {
+      fs.rmSync(skillDir(res.name), { recursive: true, force: true });
+      throw e;
+    }
+  }
+
   // 克隆/拷贝已完成，登记动作才进临界区（不在锁内做慢 IO）
   const config = withLockSync(() => {
     const c = loadConfig();
     c.skills[res.name] = {
-      source: isGit ? `git:${source}` : `local:${path.resolve(source)}`,
+      source: canonicalSource,
       checksum: res.checksum,
       installed_at: new Date().toISOString(),
       expose: {},
@@ -113,7 +135,7 @@ export async function addSkill(source: string, opts: AddOptions = {}): Promise<A
   let enabled: string[] = [];
   let skipped: { agent: string; reason: string }[] = [];
   if (opts.for?.length) {
-    const r = enableSkill(res.name, opts.for);
+    const r = enableSkill(res.name, opts.for, { policy: policyObj });
     enabled = r.linked;
     skipped = r.skipped;
   }

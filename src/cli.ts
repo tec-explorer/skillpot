@@ -1,5 +1,6 @@
 // 注意：shebang 由构建脚本的 --banner 注入（esbuild 会把源码 hashbang 排在 banner 之后，
 // 而 ESM 产物要求 hashbang 必须在第一行，故源码不写 shebang）。
+import fs from 'node:fs';
 import path from 'node:path';
 import * as readline from 'node:readline';
 import { Command } from 'commander';
@@ -13,7 +14,7 @@ import { exposedTargets, isExposed } from './core/expose';
 import { storeSkillNames } from './core/store';
 import { addSkill } from './core/add';
 import { uninstallSkill } from './core/uninstall';
-import { addSource, formatInstalls, installFromDirectory, listSources, removeSource, scanSource, searchDirectory } from './core/market';
+import { addSource, formatInstalls, getRegistryStatus, installFromDirectory, listSources, removeSource, scanSource, searchDirectory } from './core/market';
 import { runAudit } from './core/audit';
 import { exportManifest, SYNC_ACTION_LABELS, syncManifest } from './core/team-sync';
 import { disableSkill, enableSkill, broadcastSkill, isBroadcastTarget, resolveAgentIds, SyncResult } from './core/sync';
@@ -21,6 +22,7 @@ import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
 import { lintSkill, lintSummary } from './core/lint';
 import { updateSkills } from './core/update';
+import { applyPolicy, checkPolicy, DEFAULT_POLICY_FILE, generatePolicyTemplate, loadPolicy } from './core/policy';
 import { startMcpServer } from './core/mcp-server';
 import { startGuiServer } from './core/gui-server';
 import { runTui } from './tui/index';
@@ -198,9 +200,11 @@ program
   )
   .option('-n, --name <name>', '指定 skill 名（默认取 frontmatter name 或目录名）')
   .option('-f, --force', '跳过安全检查阻断，强制安装')
+  .option('-p, --policy <path>', '指定策略文件路径进行合规校验')
   .action(
-    run(async (source: string, opts: { name?: string; force?: boolean }) => {
-      const res = await addSkill(source, { name: opts.name, force: opts.force });
+    run(async (source: string, opts: { name?: string; force?: boolean; policy?: string }) => {
+      const policyObj = opts.policy ? loadPolicy(opts.policy)?.policy : undefined;
+      const res = await addSkill(source, { name: opts.name, force: opts.force, policy: policyObj });
       console.log(pc.green(`✔ 已安装 ${res.name}`));
       if (res.description) console.log(pc.dim(`  ${res.description.slice(0, 120)}`));
       for (const i of res.lint) {
@@ -265,9 +269,11 @@ program
   .command('enable <skill>')
   .description('对指定目标开放 skill（在目标的 skills 目录建立 symlink）')
   .option('-f, --for <targets>', FOR_HELP, 'all')
+  .option('-p, --policy <path>', '指定策略文件路径进行合规校验')
   .action(
-    run((skill: string, opts: { for: string }) => {
-      reportSync(enableSkill(skill, resolveAgentIds(opts.for)), '开放');
+    run((skill: string, opts: { for: string; policy?: string }) => {
+      const policyObj = opts.policy ? loadPolicy(opts.policy)?.policy : undefined;
+      reportSync(enableSkill(skill, resolveAgentIds(opts.for), { policy: policyObj }), '开放');
     }),
   );
 
@@ -341,12 +347,13 @@ program
 program
   .command('audit')
   .description('审计：每个 Agent 实际生效的 skill、来源与被绕过/遮蔽情况')
+  .option('-p, --policy <path>', '指定策略文件进行合规审计')
   .option('--json', '以 JSON 输出')
   .option('--ci', 'CI 模式（存在风险时非零退出码）')
   .option('--fail-on <level>', '非零退出门禁级别：error（默认）或 warn')
   .action(
-    run((opts: { json?: boolean; ci?: boolean; failOn?: string }) => {
-      const report = runAudit();
+    run((opts: { policy?: string; json?: boolean; ci?: boolean; failOn?: string }) => {
+      const report = runAudit({ policyFile: opts.policy });
       const errorCount = report.agents.reduce(
         (n, a) => n + a.findings.filter((f) => f.level === 'error').length,
         0,
@@ -359,6 +366,21 @@ program
       if (opts.json) {
         console.log(JSON.stringify(report, null, 2));
       } else {
+        if (report.policyResult) {
+          console.log(
+            pc.bold(`【组织策略合规审查：${report.policyResult.policy.name || '安全基线'}】`),
+          );
+          if (report.policyResult.compliant) {
+            console.log(pc.green('  ✔ 策略合规：未发现违规项'));
+          } else {
+            for (const v of report.policyResult.violations) {
+              const tag = v.severity === 'error' ? pc.red('  ✗') : pc.yellow('  ⚠');
+              console.log(`${tag} ${v.message} ${pc.dim(`(${v.rule})`)}`);
+            }
+          }
+          console.log();
+        }
+
         for (const a of report.agents) {
           console.log(
             pc.bold(`${a.agentName} (${a.agent})`) + ` — 实际生效 ${a.active.length} 个`,
@@ -748,6 +770,135 @@ program
         console.log(
           pc.dim('默认未开放。skillpot enable <skill> --for <agents> 或在 GUI 矩阵打勾'),
         );
+    }),
+  );
+
+const policyCmd = program.command('policy').description('企业与团队策略治理命令');
+
+policyCmd
+  .command('check')
+  .description('检查当前本机环境与已装技能是否符合企业安全治理策略')
+  .option('-p, --policy <path>', '指定策略文件路径')
+  .option('--ci', 'CI 模式（存在策略违规时以非零退出码阻断）')
+  .option('--json', '以 JSON 输出')
+  .action(
+    run((opts: { policy?: string; ci?: boolean; json?: boolean }) => {
+      const loaded = loadPolicy(opts.policy);
+      if (!loaded) {
+        throw new Error('未找到策略文件；可使用 skillpot policy init 初始化一个，或通过 -p/--policy 指定');
+      }
+      const res = checkPolicy(loaded.policy, loaded.file);
+      if (opts.json) {
+        console.log(JSON.stringify(res, null, 2));
+      } else {
+        console.log(pc.bold(`=== 策略合规检查：${loaded.policy.name || '安全基线'} ===`));
+        console.log(`策略文件: ${res.file}`);
+        console.log(
+          `执行模式: ${res.policy.mode === 'audit' ? pc.yellow('audit (仅告警)') : pc.cyan('strict (强制阻断)')}`,
+        );
+        console.log(`基线规则: 强制 ${res.enforcedCount} 项 / 禁用 ${res.deniedCount} 项\n`);
+
+        if (res.compliant) {
+          console.log(pc.green('✔ 策略检查通过：所有合规基线与安全限制均已满足'));
+        } else {
+          for (const v of res.violations) {
+            const tag = v.severity === 'error' ? pc.red('✗ [严重]') : pc.yellow('⚠ [告警]');
+            console.log(`${tag} ${v.message} ${pc.dim(`(${v.rule})`)}`);
+          }
+          const errors = res.violations.filter((v) => v.severity === 'error').length;
+          const warns = res.violations.filter((v) => v.severity === 'warn').length;
+          console.log(pc.yellow(`\n发现 ${res.violations.length} 条策略违规（${errors} error / ${warns} warn）`));
+          console.log(pc.dim('提示：运行 skillpot policy apply 可自动对齐强制基线并卸载违规技能'));
+        }
+      }
+
+      if (opts.ci) {
+        const errorCount = res.violations.filter((v) => v.severity === 'error').length;
+        if (errorCount > 0 || (res.policy.mode === 'strict' && res.violations.length > 0)) {
+          process.exitCode = 1;
+        }
+      }
+    }),
+  );
+
+policyCmd
+  .command('apply')
+  .description('自动执行策略修复：安装强制技能、开启目标、撤下并卸载禁用技能')
+  .option('-p, --policy <path>', '指定策略文件路径')
+  .option('--dry-run', '仅预览将要执行的策略修复动作，不实际修改磁盘或配置')
+  .option('-f, --force', '强制放行安装过程中的提示词阻断检查')
+  .action(
+    run(async (opts: { policy?: string; dryRun?: boolean; force?: boolean }) => {
+      const loaded = loadPolicy(opts.policy);
+      if (!loaded) {
+        throw new Error('未找到策略文件；可使用 skillpot policy init 初始化一个，或通过 -p/--policy 指定');
+      }
+      console.log(pc.bold(`正在应用策略：${loaded.policy.name || '安全基线'} (${loaded.file})`));
+      if (opts.dryRun) console.log(pc.yellow('【DRY-RUN 预览模式】不实际修改磁盘或配置\n'));
+
+      const res = await applyPolicy(loaded.policy, loaded.file, {
+        dryRun: opts.dryRun,
+        force: opts.force,
+      });
+
+      if (!res.actions.length) {
+        console.log(pc.green('✔ 当前环境已完全符合策略，无需变更'));
+      } else {
+        for (const a of res.actions) {
+          const prefix =
+            a.action === 'failed'
+              ? pc.red('✗')
+              : a.action === 'uninstalled' || a.action === 'disabled'
+                ? pc.yellow('✔')
+                : pc.green('✔');
+          console.log(`${prefix} ${a.detail}`);
+        }
+      }
+
+      if (res.violationsRemaining.length > 0) {
+        console.log(pc.yellow(`\n仍存在 ${res.violationsRemaining.length} 条无法自动解决的违规项：`));
+        for (const v of res.violationsRemaining) {
+          console.log(`  - ${v.message}`);
+        }
+      } else {
+        console.log(pc.green('\n✔ 策略修复完成，当前环境合规！'));
+      }
+    }),
+  );
+
+policyCmd
+  .command('init')
+  .description('在当前目录初始化策略文件模板（skillpot.policy.yaml）')
+  .option('-f, --file <path>', '自定义输出路径', DEFAULT_POLICY_FILE)
+  .action(
+    run((opts: { file: string }) => {
+      const target = path.resolve(process.cwd(), opts.file);
+      if (fs.existsSync(target)) {
+        throw new Error(`策略文件已存在：${target}`);
+      }
+      fs.writeFileSync(target, generatePolicyTemplate(), 'utf8');
+      console.log(pc.green(`✔ 已生成策略文件模板：${target}`));
+      console.log(pc.dim('编辑该文件后，运行 skillpot policy check 即可验证合规性'));
+    }),
+  );
+
+program
+  .command('registry')
+  .description('查看当前生效的技能 Registry 终端、认证状态及企业私有配置')
+  .option('-p, --policy <path>', '指定关联的策略文件')
+  .option('--json', '以 JSON 输出')
+  .action(
+    run((opts: { policy?: string; json?: boolean }) => {
+      const policyObj = loadPolicy(opts.policy)?.policy;
+      const status = getRegistryStatus(policyObj);
+      if (opts.json) {
+        console.log(JSON.stringify(status, null, 2));
+        return;
+      }
+      console.log(pc.bold('=== Skill Registry 状态 ==='));
+      console.log(`终端 URL:     ${pc.cyan(status.url)}${status.isPrivate ? pc.green(' (企业私有)') : pc.dim(' (公共目录)')}`);
+      console.log(`认证 Token:   ${status.hasToken ? pc.green(`已配置 (${status.tokenSource})`) : pc.dim('未配置（匿名访问）')}`);
+      console.log(`私有模式强制: ${status.forcePrivate ? pc.yellow('已开启 (force_private，禁止访问公共源)') : '未开启'}`);
     }),
   );
 

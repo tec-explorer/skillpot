@@ -94,3 +94,107 @@ export interface Issue {
   message: string;
   fix?: 'resync' | 'drop-ledger' | 'adopt';
 }
+
+/**
+ * 企业/组织策略治理模型（Phase 4）
+ */
+export type PolicyMode = 'strict' | 'audit';
+
+export interface EnforcedSkillRule {
+  /** 强制技能名称 */
+  name: string;
+  /** 技能来源（git: 或 local: 或 registry:） */
+  source: string;
+  /** 可选版本校验和 */
+  checksum?: string;
+  /** 强制开放目标，如 all、或 claude-code,gemini-cli（缺省 all） */
+  for?: string;
+}
+
+export interface DeniedSkillRule {
+  /** 支持通配符匹配（如 *jailbreak*） */
+  name?: string;
+  /** 来源通配符匹配（如 *untrusted.org*） */
+  source?: string;
+  /** 精确 SHA256 哈希拉黑 */
+  checksum?: string;
+  /** 禁用理由说明 */
+  reason?: string;
+}
+
+export interface RegistryPolicyConfig {
+  /** 私有/企业 Registry 终端 URL（兼容 JFrog / Vercel skills.sh API 规范） */
+  url?: string;
+  /** 读取 token 的环境变量名称，如 CORP_SKILLS_TOKEN */
+  token_env?: string;
+  /** 直接配置 token（建议优先使用 token_env） */
+  token?: string;
+  /** 强制仅使用私有源，禁止回退公共 skills.sh */
+  force_private?: boolean;
+}
+
+export interface TargetPolicyRule {
+  /** 是否允许对该目标开放（如 broadcast: { allow: false } 严禁开放通用广播） */
+  allow?: boolean;
+}
+
+export interface SkillPotPolicy {
+  version: 1;
+  name?: string;
+  mode?: PolicyMode;
+  registry?: RegistryPolicyConfig;
+  /** 强制开启清单（合规基线） */
+  enforce?: EnforcedSkillRule[];
+  /** 组织禁用清单（黑名单） */
+  deny?: DeniedSkillRule[];
+  /** 允许的安装源白名单（前缀或通配符，如 git:https://github.com/my-corp/*） */
+  allowed_sources?: string[];
+  /** 目标渠道约束 */
+  targets?: Record<string, TargetPolicyRule>;
+}
+
+export type PolicyViolationType =
+  | 'enforce_missing'
+  | 'enforce_not_exposed'
+  | 'denied_installed'
+  | 'denied_exposed'
+  | 'disallowed_source'
+  | 'target_disallowed';
+
+export interface PolicyViolation {
+  type: PolicyViolationType;
+  severity: 'error' | 'warn';
+  rule: string;
+  skill?: string;
+  target?: string;
+  message: string;
+}
+
+export interface PolicyCheckResult {
+  file: string;
+  policy: SkillPotPolicy;
+  compliant: boolean;
+  violations: PolicyViolation[];
+  enforcedCount: number;
+  deniedCount: number;
+}
+
+export interface PolicyApplyAction {
+  skill: string;
+  action: 'installed' | 'exposed' | 'disabled' | 'uninstalled' | 'skipped' | 'failed';
+  detail: string;
+}
+
+export interface PolicyApplyResult {
+  file: string;
+  actions: PolicyApplyAction[];
+  violationsRemaining: PolicyViolation[];
+}
+
+export interface RegistryStatus {
+  url: string;
+  isPrivate: boolean;
+  hasToken: boolean;
+  tokenSource?: string;
+  forcePrivate: boolean;
+}

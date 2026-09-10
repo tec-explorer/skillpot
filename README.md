@@ -99,7 +99,8 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | `gui [--port] [--host] [--no-open]` | Web 控制台：开关矩阵/体检/收编/安装/市场/维护 |
 | `market [url] [--refresh]` | 浏览技能源里的 skill（缺省扫描全部源） |
 | `sync [--file] [--export] [--dry-run]` | 团队对齐：按项目清单 `.skillpot.yaml` 安装/对齐 skill |
-
+| `policy [check\|apply\|init]` | 企业级策略治理：合规基线、黑白名单阻断与自动修复（Policy-as-Code） |
+| `registry` | 查看私有/公共 Registry 连接状态与认证信息 |
 | `source list\|add <url>\|remove <url>` | 市场源管理（内置官方源 + 自定义 git 源） |
 | `mcp` | 以 MCP server (stdio) 运行，供支持 MCP 的 Agent 消费 |
 | `tui [--once]` | 交互式开关矩阵；无 TTY 自动降级静态输出 |
@@ -165,6 +166,43 @@ skillpot sync           # 按 ./.skillpot.yaml 对齐；--dry-run 先预览
 - `local:` 来源无法跨机器对齐，导出时会给出警告
 - 对齐走与 `add` 相同的安装流程（含 lint、来源登记进 lockfile）
 
+## 企业策略治理与私有 Registry
+
+通过维护代码化策略文件 `skillpot.policy.yaml`，组织可实现全员合规基线管控与私有 Registry 对接：
+
+```yaml
+version: "1.0"
+mode: strict # strict（默认阻断）| audit（告警模式）
+
+allowed_sources:
+  - "https://github.com/my-org/*"
+  - "local:*"
+
+targets:
+  broadcast:
+    allow: false # 禁用全局广播暴露
+
+enforce:
+  - name: "security-guard"
+    source: "https://github.com/my-org/security-guard.git"
+    targets: ["all"]
+
+deny:
+  - pattern: "*crypto*"
+    reason: "组织黑名单"
+
+registry:
+  endpoint: "https://skills.corp.example.com/api"
+  token_env: "SKILLPOT_REGISTRY_TOKEN"
+  force_private: true
+```
+
+- `skillpot policy init`：生成标准企业策略模板
+- `skillpot policy check [--ci]`：合规审查，未达基线或命中黑名单返回非零状态码
+- `skillpot policy apply [--dry-run]`：自动修复，强制安装补齐基线并清除违规暴露
+- `skillpot registry`：查看私有 Registry 连接与鉴权状态
+- 详见 [docs/design/enterprise-policy.md](./docs/design/enterprise-policy.md)。
+
 ## 安全
 
 Skill 是注入模型上下文的指令 + 可携带可执行脚本。SkillPot 的默认安全姿态：
@@ -215,7 +253,7 @@ npm run build     # tsc 类型检查 + esbuild 打包为单文件 ESM（dist/cli
 
 ## 文档
 
-全部文档在 [docs/](./docs/README.md)（索引）：[功能指南(含截图)](./docs/guide.md) ｜ [产品规划](./docs/product/product-plan.md) ｜ [设计：适配器与落地策略](./docs/design/agent-adapters.md) ｜ [设计：MCP bridge](./docs/design/mcp-bridge.md) ｜ [里程碑执行报告](./docs/reports/) ｜ [CHANGELOG](./CHANGELOG.md)
+全部文档在 [docs/](./docs/README.md)（索引）：[功能指南(含截图)](./docs/guide.md) ｜ [产品规划](./docs/product/product-plan.md) ｜ [设计：适配器与落地策略](./docs/design/agent-adapters.md) ｜ [设计：MCP bridge](./docs/design/mcp-bridge.md) ｜ [设计：企业策略与私有 Registry](./docs/design/enterprise-policy.md) ｜ [里程碑执行报告](./docs/reports/) ｜ [CHANGELOG](./CHANGELOG.md)
 
 ## 贡献
 
