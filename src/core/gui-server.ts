@@ -39,6 +39,7 @@ import {
 } from './policy';
 import { exportManifest, inspectManifest, syncManifest } from './team-sync';
 import { sanitizeSkillName } from '../util/frontmatter';
+import { buildMatrixSuitability, evaluateSkillForAgent, inspectSkillFeatures } from './advisor';
 
 /**
  * 本地 Web 控制台：
@@ -104,12 +105,15 @@ export async function handleApiRequest(
 
   try {
     if (method === 'GET' && pathname === '/api/state') {
+      const agents = cachedAgents();
+      const matrix = deriveMatrix(agents);
+      matrix.advisor = buildMatrixSuitability(matrix.skills, matrix.agents);
       return {
         status: 200,
         body: {
           version: VERSION,
           skills: loadConfig().skills,
-          matrix: deriveMatrix(cachedAgents()),
+          matrix,
         },
       };
     }
@@ -183,7 +187,20 @@ export async function handleApiRequest(
       const name = decodeURIComponent(pathname.slice('/api/skill/'.length));
       const detail = readSkillDetail(name);
       if (!detail) return { status: 404, body: { error: `skill 不存在：${name}` } };
-      return { status: 200, body: { ...detail, lint: lintSkill(skillDir(name)) } };
+      const agents = cachedAgents();
+      const inspection = inspectSkillFeatures(name);
+      const agentSuitability: Record<string, ReturnType<typeof evaluateSkillForAgent>> = {};
+      for (const a of agents) {
+        agentSuitability[a.id] = evaluateSkillForAgent(name, a, inspection ?? undefined);
+      }
+      return {
+        status: 200,
+        body: {
+          ...detail,
+          lint: lintSkill(skillDir(name)),
+          agentSuitability,
+        },
+      };
     }
     if (method === 'POST' && pathname === '/api/update') {
       const b = (body ?? {}) as { skill?: unknown; check?: unknown };

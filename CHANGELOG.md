@@ -3,6 +3,27 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.20.0] - 2026-09-11
+
+跨 Agent 技能适用性治理与 Web 控制台现代交互体验升级：轻量启发式 Token 估算、运行环境与依赖探测、渠道防泛洪评估、以及 Web GUI 全矩阵视觉与排版重构。
+
+### Added
+- **Skill 与 Agent 适配度分析引擎 (Advisor Engine) (`src/core/advisor.ts`, `src/util/token-estimator.ts`)**：
+  - **启发式 Token 快速估算**：支持中英文与代码混合文本加权估算，提供 light (<500 tokens)、moderate (500~2.5k tokens) 与 heavy (>2.5k tokens) 体量分级。
+  - **环境与运行时依赖安全探测**：自动识别 `scripts/`（Python/Bash/Node 等）执行环境依赖，以及正文与 frontmatter 声明的外部 CLI 命令（Docker, K8s, Helm 等），采用无子进程的安全 PATH 探针。
+  - **渠道与 Agent 规则体系**：对通用广播渠道 (`broadcast`) 引入重型技能降级与专有技能警示；对未安装或未验证的 Agent 提供适配度打分惩罚与提醒。
+  - **四级建议与量化分级**：综合输出 🟢 推荐启用 (recommended)、⚪ 按需启用 (neutral)、🟡 需留意 (caution)、🔴 缺依赖/不推荐 (incompatible)，并给出 0~100 量化得分、一句话诊断结论、Token 开销与优劣势理由。
+  - 新增测试套件 `tests/advisor.test.ts`。
+
+### Changed
+- **Web GUI 矩阵全方位现代美学与排版重构 (`src/gui/style.css`, `src/gui/views/MatrixView.tsx`, `src/gui/views/DetailModal.tsx`)**：
+  - **页面与列宽重构**：主容器自适应拓宽至 1240px，Agent 列收敛为 86px 紧凑等宽居中列，Skill 列充裕展示且强制禁止连字符断词折行。
+  - **纯净代码质感排版**：彻底剔除密集的虚线下划线，采用标准 monospace 代码字形与优雅的悬停微交互。
+  - **吸顶固定与微徽章表头**：长列表滚动时表头与技能列双向 Sticky 吸顶；表头状态使用微胶囊 Badge，全开/全停重构为紧凑双联药丸按钮组。
+  - **整行导轨与微型 Switch Token**：新增整行高亮导轨 (`tr:hover`)；已开启采用浅绿微胶囊 Badge，未开启平时为淡灰小点、悬停时浮现淡蓝 `+` 开启暗示。
+  - **实时悬停 Tooltip 与角标**：单元格右上角挂载适配指示点，鼠标悬停毫秒级浮出深色卡片呈现 Token、依赖就绪情况与优缺点诊断。
+  - **详情弹窗 Agent 适配报告**：点击技能详情即可查看所有受管 Agent 的完整适配体检卡片。
+
 ## [0.19.1] - 2026-09-11
 
 ### Fixed

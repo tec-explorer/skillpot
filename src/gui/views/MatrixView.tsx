@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api';
-import { CellState, StateResp, ToggleResp, VERIFY_LABEL } from '../types';
+import { CellState, StateResp, SuitabilityAnalysis, ToggleResp, VERIFY_LABEL } from '../types';
 import { Toast } from '../App';
 
 interface Props {
@@ -10,13 +10,21 @@ interface Props {
   onOpenDetail: (skill: string) => void;
 }
 
-type StatusFilter = 'all' | 'enabled' | 'issue';
+type StatusFilter = 'all' | 'enabled' | 'issue' | 'advisor';
 
 const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: '全部' },
   { id: 'enabled', label: '已开放' },
   { id: 'issue', label: '异常/漂移' },
+  { id: 'advisor', label: '适配提醒' },
 ];
+
+const LEVEL_LABELS: Record<string, string> = {
+  recommended: '推荐',
+  neutral: '按需',
+  caution: '需留意',
+  incompatible: '不推荐/缺依赖',
+};
 
 /** 与 TUI cellGlyph 同一套语义：✓ 已开放 / ⚠ 漂移 / ! 异常 / × 外部占用 / · 未开放 */
 function cellClass(cs: CellState): string {
@@ -46,11 +54,21 @@ function cellTitle(cs: CellState): string {
   return '未开放，点击开放';
 }
 
+interface TooltipState {
+  x: number;
+  y: number;
+  skill: string;
+  agentName: string;
+  cellStatusText: string;
+  analysis?: SuitabilityAnalysis;
+}
+
 export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [visible, setVisible] = useState(20);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const { matrix } = state;
 
   const filteredSkills = useMemo(() => {
@@ -58,6 +76,12 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
     return matrix.skills.filter((s) => {
       if (q && !s.toLowerCase().includes(q)) return false;
       if (statusFilter === 'all') return true;
+      if (statusFilter === 'advisor') {
+        return matrix.agents.some((a) => {
+          const adv = matrix.advisor?.[s]?.[a.id];
+          return adv && (adv.level === 'caution' || adv.level === 'incompatible');
+        });
+      }
       const cells = matrix.agents.map((a) => matrix.cells[s]?.[a.id]);
       if (statusFilter === 'enabled') return cells.some((c) => c?.enabled);
       return cells.some(
@@ -160,80 +184,114 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           {filteredSkills.length}/{matrix.skills.length}
         </span>
       </div>
-      <table className="matrix">
-        <thead>
-          <tr>
-            <th className="skill-col">Skill</th>
-            {matrix.agents.map((a) => (
-              <th
-                key={a.id}
-                className={[
-                  a.installed ? '' : 'agent-off',
-                  a.kind === 'channel' ? 'agent-channel' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                title={`${a.skillsDir}（验证等级：${VERIFY_LABEL[a.verify]}）`}
-              >
-                <div>
-                  {a.name}
-                  {a.verify === 'unverified' && <span className="dim">（未验证）</span>}
-                </div>
-                {a.kind === 'channel' ? (
-                  <span className="dim">（共享目录·粗粒度）</span>
-                ) : (
-                  !a.installed && <span className="dim">（未检测到）</span>
-                )}
-                <span className="col-bulk">
-                  <button
-                    className="bulk-btn"
-                    title={`对 ${a.name} 开放全部 skill`}
-                    disabled={busy !== null}
-                    onClick={() => bulk(a.id, true)}
-                  >
-                    全开
-                  </button>
-                  <button
-                    className="bulk-btn"
-                    title={`对 ${a.name} 关闭全部 skill`}
-                    disabled={busy !== null}
-                    onClick={() => bulk(a.id, false)}
-                  >
-                    全停
-                  </button>
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {visibleSkills.map((s) => (
-            <tr key={s}>
-              <td
-                className="skill-name link"
-                title={state.skills[s]?.source ?? ''}
-                onClick={() => onOpenDetail(s)}
-              >
-                {s}
-              </td>
-              {matrix.agents.map((a) => {
-                const cs = matrix.cells[s]?.[a.id];
-                if (!cs) return <td key={a.id} className="cell muted">·</td>;
-                return (
-                  <td
+      <div className="matrix-card">
+        <div className="matrix-scroll-wrap">
+          <table className="matrix">
+            <thead>
+              <tr>
+                <th className="skill-th">Skill 技能</th>
+                {matrix.agents.map((a) => (
+                  <th
                     key={a.id}
-                    className={cellClass(cs) + (busy === `${s}@${a.id}` ? ' busy' : '')}
-                    title={cellTitle(cs)}
-                    onClick={() => toggle(s, a.id)}
+                    className={[
+                      'agent-th',
+                      a.installed ? '' : 'agent-off',
+                      a.kind === 'channel' ? 'agent-channel' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    title={`${a.skillsDir}（验证等级：${VERIFY_LABEL[a.verify]}）`}
                   >
-                    {cellGlyph(cs)}
+                    <div className="agent-th-inner">
+                      <div className="agent-th-title-row">
+                        <span className="agent-th-name" title={a.name}>
+                          {a.name}
+                        </span>
+                        {a.kind === 'channel' ? (
+                          <span className="th-tag channel">广播</span>
+                        ) : !a.installed ? (
+                          <span className="th-tag off">未装</span>
+                        ) : a.verify === 'unverified' ? (
+                          <span className="th-tag unverified">待验</span>
+                        ) : null}
+                      </div>
+                      <div className="agent-th-bulk">
+                        <button
+                          className="bulk-pill-btn"
+                          title={`对 ${a.name} 开放全部 skill`}
+                          disabled={busy !== null}
+                          onClick={() => bulk(a.id, true)}
+                        >
+                          全开
+                        </button>
+                        <span className="bulk-divider" />
+                        <button
+                          className="bulk-pill-btn"
+                          title={`对 ${a.name} 关闭全部 skill`}
+                          disabled={busy !== null}
+                          onClick={() => bulk(a.id, false)}
+                        >
+                          全停
+                        </button>
+                      </div>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleSkills.map((s) => (
+                <tr key={s} className="matrix-row">
+                  <td
+                    className="skill-cell"
+                    title={state.skills[s]?.source ?? ''}
+                    onClick={() => onOpenDetail(s)}
+                  >
+                    <div className="skill-cell-inner">
+                      <span className="skill-name-label">{s}</span>
+                      <span className="skill-info-tag">详情 ↗</span>
+                    </div>
                   </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  {matrix.agents.map((a) => {
+                    const cs = matrix.cells[s]?.[a.id];
+                    if (!cs) return <td key={a.id} className="cell-td empty-cell">·</td>;
+                    const adv = matrix.advisor?.[s]?.[a.id];
+                    const statusKind = cellClass(cs);
+                    return (
+                      <td
+                        key={a.id}
+                        className={`cell-td ${a.kind === 'channel' ? 'agent-channel-cell' : ''} ${busy === `${s}@${a.id}` ? 'busy' : ''}`}
+                        onClick={() => toggle(s, a.id)}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setTooltip({
+                            x: rect.left + rect.width / 2,
+                            y: rect.top,
+                            skill: s,
+                            agentName: a.name,
+                            cellStatusText: cellTitle(cs),
+                            analysis: adv,
+                          });
+                        }}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        <div className="token-wrapper">
+                          <span className={`token-badge ${statusKind}`}>
+                            {statusKind !== 'off' ? cellGlyph(cs) : null}
+                          </span>
+                          {adv && adv.level !== 'neutral' && (
+                            <span className={`advisor-badge-dot ${adv.level}`} />
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
       {filteredSkills.length > visible && (
         <div className="load-more">
           <button className="btn" onClick={() => setVisible((v) => v + 20)}>
@@ -246,10 +304,95 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           没有匹配的 skill（换个关键词或切回「全部」）。
         </p>
       )}
-      <p className="legend">
-        ✓ 已开放　⚠ 漂移（声明开放但链接缺失）　! 链接状态异常　× 外部同名占用　· 未开放
-        <span className="dim">　·　点击单元格切换（重启示例会话后生效）</span>
-      </p>
+      {tooltip && (
+        <div
+          className="advisor-tooltip"
+          style={{
+            left: `${tooltip.x}px`,
+            top: `${tooltip.y}px`,
+          }}
+        >
+          <div className="advisor-tooltip-head">
+            <span className="advisor-tooltip-target">
+              {tooltip.skill} → {tooltip.agentName}
+            </span>
+            {tooltip.analysis && (
+              <span className={`advisor-level-pill ${tooltip.analysis.level}`}>
+                {LEVEL_LABELS[tooltip.analysis.level] || tooltip.analysis.level} ({tooltip.analysis.score}分)
+              </span>
+            )}
+          </div>
+          <div className="advisor-tooltip-status">
+            状态：{tooltip.cellStatusText}
+          </div>
+          {tooltip.analysis && (
+            <>
+              <div className="advisor-tooltip-summary">
+                {tooltip.analysis.summary}
+              </div>
+              <div className="advisor-tooltip-meta">
+                <div className="advisor-tooltip-meta-item">
+                  <span>⚡ 预估：</span>
+                  <span>
+                    ~{tooltip.analysis.tokenCost.tokens} tokens (
+                    {tooltip.analysis.tokenCost.level === 'light'
+                      ? '轻量'
+                      : tooltip.analysis.tokenCost.level === 'moderate'
+                        ? '适中'
+                        : '较重'}
+                    )
+                  </span>
+                </div>
+                {tooltip.analysis.dependencies.satisfied.length > 0 && (
+                  <div className="advisor-tooltip-meta-item">
+                    <span>✓ 就绪：</span>
+                    <span>{tooltip.analysis.dependencies.satisfied.slice(0, 3).join(', ')}</span>
+                  </div>
+                )}
+                {tooltip.analysis.dependencies.missing.length > 0 && (
+                  <div className="advisor-tooltip-meta-item" style={{ color: '#f87171' }}>
+                    <span>✗ 缺少：</span>
+                    <span>{tooltip.analysis.dependencies.missing.join(', ')}</span>
+                  </div>
+                )}
+              </div>
+              {(tooltip.analysis.reasons.pros.length > 0 ||
+                tooltip.analysis.reasons.risks.length > 0) && (
+                <div className="advisor-tooltip-reasons">
+                  {tooltip.analysis.reasons.pros.slice(0, 2).map((p, idx) => (
+                    <div key={`p-${idx}`} className="advisor-tooltip-reason pro">
+                      <span>•</span>
+                      <span>{p}</span>
+                    </div>
+                  ))}
+                  {tooltip.analysis.reasons.risks.slice(0, 2).map((r, idx) => (
+                    <div key={`r-${idx}`} className="advisor-tooltip-reason risk">
+                      <span>•</span>
+                      <span>{r}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      <div className="matrix-footer-legend">
+        <div className="legend-section">
+          <span className="legend-label">开关状态：</span>
+          <span className="legend-pill ok">✓ 已开放</span>
+          <span className="legend-pill warn">⚠ 漂移缺失</span>
+          <span className="legend-pill conflict">! 异常/冲突</span>
+          <span className="legend-pill off">· 未开放（点击切换）</span>
+        </div>
+        <div className="legend-section">
+          <span className="legend-label">适配评估：</span>
+          <span className="legend-item"><span className="legend-dot rec" /> 推荐</span>
+          <span className="legend-item"><span className="legend-dot caution" /> 需留意</span>
+          <span className="legend-item"><span className="legend-dot incompatible" /> 缺依赖/不兼容</span>
+          <span className="legend-hint">（悬停单元格查看开销与依赖诊断）</span>
+        </div>
+      </div>
     </div>
   );
 }

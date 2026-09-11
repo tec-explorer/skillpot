@@ -23,10 +23,31 @@ export interface MatrixAgent {
   verify: VerifyLevel;
 }
 
+export type SuitabilityLevel = 'recommended' | 'neutral' | 'caution' | 'incompatible';
+
+export interface SuitabilityAnalysis {
+  level: SuitabilityLevel;
+  score: number;
+  summary: string;
+  tokenCost: {
+    tokens: number;
+    level: 'light' | 'moderate' | 'heavy';
+  };
+  dependencies: {
+    satisfied: string[];
+    missing: string[];
+  };
+  reasons: {
+    pros: string[];
+    risks: string[];
+  };
+}
+
 export interface Matrix {
   skills: string[];
   agents: MatrixAgent[];
   cells: Record<string, Record<string, CellState>>;
+  advisor?: Record<string, Record<string, SuitabilityAnalysis>>;
 }
 
 export interface SkillEntry {
@@ -112,6 +133,7 @@ export interface SkillDetail {
   files: string[];
   skillMd: string | null;
   lint: LintIssue[];
+  agentSuitability?: Record<string, SuitabilityAnalysis>;
 }
 
 export interface MarketSkillPreview {

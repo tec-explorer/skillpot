@@ -198,3 +198,30 @@ export interface RegistryStatus {
   tokenSource?: string;
   forcePrivate: boolean;
 }
+
+/**
+ * Skill 与 Agent 适配度等级：
+ * - recommended: 依赖满足、体量适中、契合 Agent 形态
+ * - neutral: 通用辅助，体量正常，按需启用
+ * - caution: 体量过大、广播渠道泛洪风险或 Agent 未验证/未安装
+ * - incompatible: 缺少关键运行依赖或明确不兼容
+ */
+export type SuitabilityLevel = 'recommended' | 'neutral' | 'caution' | 'incompatible';
+
+export interface SuitabilityAnalysis {
+  level: SuitabilityLevel;
+  score: number;
+  summary: string;
+  tokenCost: {
+    tokens: number;
+    level: 'light' | 'moderate' | 'heavy';
+  };
+  dependencies: {
+    satisfied: string[];
+    missing: string[];
+  };
+  reasons: {
+    pros: string[];
+    risks: string[];
+  };
+}

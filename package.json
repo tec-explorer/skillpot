@@ -1,6 +1,6 @@
 {
   "name": "@tec-explorer/skillpot",
-  "version": "0.19.1",
+  "version": "0.20.0",
   "description": "Cross-agent skill supply chain security & governance layer for coding agents — install once, expose per target, pre-install safety gate, full audit.",
   "repository": {
     "type": "git",

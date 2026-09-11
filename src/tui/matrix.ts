@@ -4,7 +4,7 @@ import { skillDir } from '../paths';
 import { detectAll } from '../agents/detect';
 import { loadConfig, loadState } from '../core/config';
 import { isExposed } from '../core/expose';
-import { TargetKind, VerifyLevel } from '../types';
+import { SuitabilityAnalysis, TargetKind, VerifyLevel } from '../types';
 
 export interface CellState {
   /** 开关矩阵声明：应对该 Agent 开放 */
@@ -30,6 +30,7 @@ export interface Matrix {
   skills: string[];
   agents: MatrixAgent[];
   cells: Record<string, Record<string, CellState>>;
+  advisor?: Record<string, Record<string, SuitabilityAnalysis>>;
 }
 
 /** 从 config + 各 Agent 目录现状推导矩阵（只读，不修改任何状态）。
