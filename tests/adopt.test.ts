@@ -7,6 +7,7 @@ import { initStore, loadConfig, loadState, saveConfig } from '../src/core/config
 import { installFromLocal } from '../src/core/store';
 import { enableSkill } from '../src/core/sync';
 import { adoptSkills, scanAgentSkills, scanAdoptable } from '../src/core/adopt';
+import { detectAll, detectCachePath } from '../src/agents/detect';
 import { agentHome, skillDir } from '../src/paths';
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/demo-skill', import.meta.url));
@@ -119,5 +120,19 @@ describe('adoptSkills', () => {
     expect(fs.lstatSync(src).isSymbolicLink()).toBe(true);
     expect(fs.realpathSync(src)).toBe(fs.realpathSync(skillDir('alpha')));
     expect(loadConfig().skills['alpha'].expose['claude-code']).toBe(true);
+  });
+
+  it('当 detect 缓存曾将某 agent 记为未安装时，adopt 仍能刷新识别后续创建的 skill', () => {
+    // 1. 先触发一次 detectAll 生成缓存（此时没有该 agent 的 skills 目录）
+    detectAll();
+    const cacheFile = detectCachePath();
+    expect(fs.existsSync(cacheFile)).toBe(true);
+
+    // 2. 模拟外部动态创建了新的 agent skill 目录
+    writeAgentSkill('.codex', 'dynamic-skill', 'Skill created dynamically after initial agent detection.');
+
+    // 3. 不传 from 参数调用 adoptSkills，验证能穿透并刷新缓存识别出 dynamic-skill
+    const report = adoptSkills({ dryRun: true });
+    expect(report.items.some((i) => i.name === 'dynamic-skill' && i.status === 'dry-run')).toBe(true);
   });
 });

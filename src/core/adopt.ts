@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { agentHome, skillDir, storeDir } from '../paths';
 import { detectAll } from '../agents/detect';
-import { getAgent } from '../agents/registry';
+import { AGENTS, getAgent } from '../agents/registry';
 import { loadConfig, saveConfig } from './config';
 import { installFromLocal } from './store';
 import { enableSkill } from './sync';
@@ -109,8 +109,19 @@ export function adoptSkills(opts: AdoptOptions = {}): AdoptReport {
 
 function adoptUnlocked(opts: AdoptOptions = {}): AdoptReport {
   // 缺省只扫描具体 Agent：~/.agents/skills 是共享广播目录，不该被默认当作"待收编来源"
-  const agentIds =
-    opts.from ?? detectAll().filter((r) => r.installed && r.kind !== 'channel').map((r) => r.id);
+  // 实时刷新检测，确保新安装或刚创建的 Agent 目录不会因旧缓存被漏掉
+  const detectedIds = new Set(
+    detectAll({ refresh: true })
+      .filter((r) => r.installed && r.kind !== 'channel')
+      .map((r) => r.id),
+  );
+  const home = agentHome();
+  for (const a of AGENTS) {
+    if (a.kind !== 'channel' && fs.existsSync(a.skillsDir(home))) {
+      detectedIds.add(a.id);
+    }
+  }
+  const agentIds = opts.from ?? Array.from(detectedIds);
   for (const id of agentIds) {
     if (!getAgent(id)) throw new Error(`未知 agent '${id}'`);
   }

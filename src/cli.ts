@@ -7,8 +7,8 @@ import { Command } from 'commander';
 import pc from 'picocolors';
 
 import { agentHome, skillDir, storeDir } from './paths';
-import { allTargetIds } from './agents/registry';
-import { detectAll } from './agents/detect';
+import { AGENTS, allTargetIds, getAgent } from './agents/registry';
+import { clearDetectCache, detectAll } from './agents/detect';
 import { initStore, loadConfig, loadState } from './core/config';
 import { exposedTargets, isExposed } from './core/expose';
 import { storeSkillNames } from './core/store';
@@ -108,9 +108,23 @@ async function suggestAdopt(): Promise<boolean> {
   const config = loadConfig();
   if (Object.keys(config.skills).length > 0) return false;
 
-  const found = detectAll()
-    .filter((r) => r.installed)
-    .map((r) => ({ id: r.id, name: r.name, skills: scanAdoptable(r.id) }))
+  const home = agentHome();
+  const detectedIds = new Set(
+    detectAll({ refresh: true })
+      .filter((r) => r.installed && r.kind !== 'channel')
+      .map((r) => r.id),
+  );
+  for (const a of AGENTS) {
+    if (a.kind !== 'channel' && fs.existsSync(a.skillsDir(home))) {
+      detectedIds.add(a.id);
+    }
+  }
+
+  const found = Array.from(detectedIds)
+    .map((id) => {
+      const a = getAgent(id);
+      return { id, name: a?.name ?? id, skills: scanAdoptable(id) };
+    })
     .filter((f) => f.skills.length > 0);
   if (!found.length) return false;
 
@@ -164,6 +178,7 @@ program
   .description('初始化中央仓库（~/.skillpot）并检测本机 Agent')
   .action(
     run(async () => {
+      clearDetectCache();
       const { created } = initStore();
       console.log(
         created

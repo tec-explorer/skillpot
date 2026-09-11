@@ -3,6 +3,15 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.19.1] - 2026-09-11
+
+### Fixed
+- **CI / 无头干净运行环境 Agent 检测缓存修复 (`src/agents/detect.ts`, `src/core/adopt.ts`, `src/cli.ts`)**：
+  - 解决未预装 Agent 客户端二进制的机器上，`init` 生成包含 `installed: false` 的 5 分钟本地缓存导致随后的 `adopt` 漏检新建 skills 目录并引发 CI 失败的问题；
+  - `adoptUnlocked()` 与 `suggestAdopt()` 强制调用 `detectAll({ refresh: true })` 实时探测，并补充扫描磁盘物理存在的 `skillsDir`；
+  - `skillpot init` 新增 `clearDetectCache()` 保证干净初始化；
+  - `detectAgent()` 增强：当 Agent 的 `skillsDir` 实际存在时直接认定安装并注入目录指纹信号。
+
 ## [0.19.0] - 2026-09-11
 
 平台能力、团队协同与多源安全治理全面升级：远程策略中心、离线技能内联打包、GUI 提示词深度抽屉、局部安全抑制与跨进程防竞态锁固。

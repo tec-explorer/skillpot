@@ -100,6 +100,13 @@ export function detectAgent(adapter: AgentAdapter): AgentDetectResult {
         signals.push(`dir:${shorten(home, fp)}`);
       }
     }
+    if (fs.existsSync(dir)) {
+      installed = true;
+      const shortDir = `dir:${shorten(home, dir)}`;
+      if (!signals.includes(shortDir)) {
+        signals.push(shortDir);
+      }
+    }
   }
 
   return {
