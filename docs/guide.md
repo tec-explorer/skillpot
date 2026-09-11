@@ -243,25 +243,25 @@ CLI 内置非阻塞版本更新提示器（`src/util/update-notifier.ts`）：
 |---|---|
 | `skillpot init` | 初始化中央仓库 + Agent 检测 |
 | `skillpot agents [--json] [--refresh]` | 检测本机 Agent、skills 目录与各目标验证等级（--refresh 强制跳过缓存重新探测） |
-| `skillpot add <source> [-f]` | 安装(本地目录 / git URL#subdir)，安装前安全扫描，`-f` 强制放行 |
+| `skillpot add <source> [-f] [-r <ref>]` | 安装(本地目录 / git URL@ref#subdir)，`-r` 锁定 Git Tag/分支/Commit，安装前安全扫描，`-f` 强制放行 |
 | `skillpot list [--agent id\|broadcast]` | 列出仓库 skill 与开放状态 |
 | `skillpot enable/disable <skill> --for <targets>` | 开关(targets 支持逗号分隔、`broadcast` 或 `all`;`all` 不含通用广播) |
 | `skillpot broadcast <skill> [--off]` | 通用广播列的命令糖(= `enable --for broadcast`) |
 | `skillpot remove <skill>` | 卸载(撤下所有链接 + 删除中央仓库内容) |
 | `skillpot adopt [--move] [--dry-run]` | 收编既有 skill，`--move` 替换原目录为受管 symlink |
-| `skillpot lint [skill] [--strict]` | 深度安全/质量扫描(提示词注入、隐藏注释、Unicode 混淆) |
-| `skillpot update [skill] [--check]` | git 来源原位更新与变更 diff 对比 |
+| `skillpot lint [skill] [--strict]` | 深度安全/质量扫描，支持 `<!-- skillpot-ignore -->` 与 `<!-- skillpot-disable-next-line -->` 局部规则抑制 |
+| `skillpot update [skill] [--check]` | git 来源原位更新与变更 diff 对比（严格对齐锁定的 ref 版本） |
 | `skillpot doctor [--fix]` | 体检(断链/漂移/同名遮蔽/孤儿链接)与自动修复 |
 | `skillpot audit [--json] [--ci] [--fail-on <lvl>]` | 全量审计各目标物理 skill、来源、未受管条目与 CI 阻断门禁 |
-| `skillpot policy check/apply/init [--ci]` | 企业策略治理：审查合规基线、一键自动修复与模板初始化 |
+| `skillpot policy check/apply/init [-u <url>] [--ci]` | 企业策略治理：审查合规基线、一键自动修复与模板初始化；`-u/--url` 支持远程策略与离线降级 |
 | `skillpot registry` | 查看私有/公共 Registry 终端连接、Token 注入与私有锁定状态 |
-| `skillpot gui [--port] [--host] [--no-open]` | Web 浏览器控制台(矩阵/体检/收编/安装/市场/维护/策略) |
+| `skillpot gui [--port] [--host] [--no-open]` | Web 浏览器控制台(矩阵/体检/收编/安装/市场/维护/策略；市场支持 SKILL.md 提示词深度抽屉预览) |
 | `skillpot tui [--once]` | 终端交互式开关矩阵；无 TTY 自动降级输出 |
 | `skillpot mcp` | 以 MCP server (stdio) 运行，受 `SKILLPOT_AGENT` 身份约束 |
 | `skillpot source list/add/remove` | 市场源管理(内置官方源 + 自定义 git 仓库源) |
 | `skillpot market [url] [--refresh]` | 命令行浏览源内 skill 并一键安装 |
 | `skillpot search <关键词>` / `install-search <id>` | 搜索并安装 skills.sh 目录中的 skill |
-| `skillpot sync [--file] [--export] [--dry-run]` | 团队对齐：按项目清单 `.skillpot.yaml` 安装/导出/对齐 |
+| `skillpot sync [--file] [--export] [--bundle-local] [--dry-run] [--refresh-copies]` | 团队对齐：按项目清单安装/导出；`--bundle-local` 打包内联本地技能；`--refresh-copies` 一键安全刷新 copy 副本 |
 
 ## 14. 支持的目标
 

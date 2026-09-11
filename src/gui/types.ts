@@ -114,6 +114,18 @@ export interface SkillDetail {
   lint: LintIssue[];
 }
 
+export interface MarketSkillPreview {
+  name: string;
+  subdir: string;
+  url: string;
+  description: string;
+  meta: { name?: string; description?: string } | null;
+  files: string[];
+  skillMd: string | null;
+  lint: LintIssue[];
+  installed: boolean;
+}
+
 export type UpdateStatus = 'up-to-date' | 'outdated' | 'updated' | 'local' | 'error';
 
 export interface UpdateDiff {

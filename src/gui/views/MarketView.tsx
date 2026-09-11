@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { AddResult, MarketSkill, SourceInfo } from '../types';
 import { Toast } from '../App';
+import { MarketPreviewModal } from './MarketPreviewModal';
 
 interface Props {
   /** SSE 变更序号:变化时重新扫描(命中本地克隆缓存,秒回) */
@@ -19,6 +20,7 @@ export function MarketView({ rev, reload, toast }: Props) {
   const [scanning, setScanning] = useState(false);
   const [clonedNote, setClonedNote] = useState('');
   const [installing, setInstalling] = useState<string | null>(null);
+  const [previewSkill, setPreviewSkill] = useState<MarketSkill | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [newName, setNewName] = useState('');
@@ -233,21 +235,36 @@ export function MarketView({ rev, reload, toast }: Props) {
               <tbody>
                 {visibleSkills.map((s) => (
                   <tr key={s.subdir}>
-                    <td className="skill-name">{s.name}</td>
+                    <td
+                      className="skill-name link"
+                      title="点击查看详情与提示词"
+                      onClick={() => setPreviewSkill(s)}
+                    >
+                      {s.name}
+                    </td>
                     <td className="dim small">{s.description.slice(0, 90)}</td>
                     <td className="dim small mono">{s.subdir}</td>
                     <td>
-                      {s.installed ? (
-                        <span className="dim small">已安装</span>
-                      ) : (
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <button
-                          className="btn small-btn"
-                          disabled={installing !== null}
-                          onClick={() => install(s)}
+                          className="btn small-btn ghost"
+                          onClick={() => setPreviewSkill(s)}
+                          title="查看 SKILL.md 提示词与安全体检"
                         >
-                          {installing === s.subdir ? '安装中…' : '安装'}
+                          详情
                         </button>
-                      )}
+                        {s.installed ? (
+                          <span className="dim small">已安装</span>
+                        ) : (
+                          <button
+                            className="btn small-btn"
+                            disabled={installing !== null}
+                            onClick={() => install(s)}
+                          >
+                            {installing === s.subdir ? '安装中…' : '安装'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -266,6 +283,21 @@ export function MarketView({ rev, reload, toast }: Props) {
             官方源中 docx/pdf/pptx/xlsx 为 source-available 许可，使用前请阅原仓库说明。
           </p>
         </>
+      )}
+
+      {previewSkill && (
+        <MarketPreviewModal
+          skill={previewSkill}
+          url={selected}
+          onClose={() => setPreviewSkill(null)}
+          onInstalled={(sub) =>
+            setSkills((prev) =>
+              prev ? prev.map((p) => (p.subdir === sub ? { ...p, installed: true } : p)) : prev,
+            )
+          }
+          reload={reload}
+          toast={toast}
+        />
       )}
     </div>
   );

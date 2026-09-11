@@ -1,7 +1,10 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, stringify } from 'yaml';
-import { skillpotHome } from '../paths';
+import { policyCacheDir, skillpotHome } from '../paths';
+import { VERSION } from '../version';
+import { writeFileAtomic } from '../util/fsx';
 import { loadConfig, loadState, saveConfig } from './config';
 import { exposedTargets } from './expose';
 import { allTargetIds } from '../agents/registry';
@@ -21,6 +24,142 @@ import {
 
 /** 默认策略文件名 */
 export const DEFAULT_POLICY_FILE = 'skillpot.policy.yaml';
+
+/** 判断是否为远程 URL */
+export function isUrl(pathOrUrl: string): boolean {
+  return /^https?:\/\//i.test(pathOrUrl);
+}
+
+/** 计算远程策略文件的本地缓存路径（~/.skillpot/cache/policy/<url-hash>.yaml） */
+export function policyCacheFileFor(url: string): string {
+  const hash = crypto.createHash('sha256').update(url).digest('hex').slice(0, 16);
+  return path.join(policyCacheDir(), `${hash}.yaml`);
+}
+
+/** 解析并校验策略文件内容结构 */
+export function parsePolicyContent(raw: string, sourceDesc: string): SkillPotPolicy {
+  let data: any;
+  try {
+    data = parse(raw);
+  } catch (e) {
+    throw new Error(`解析策略文件失败 (${sourceDesc})：${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  if (!data || typeof data !== 'object') {
+    throw new Error(`策略文件内容无效 (${sourceDesc})`);
+  }
+
+  if (data.version !== 1) {
+    throw new Error(`不支持的策略文件版本：${data.version}（当前仅支持 version: 1）`);
+  }
+
+  return {
+    version: 1,
+    name: typeof data.name === 'string' ? data.name : undefined,
+    mode: data.mode === 'audit' ? 'audit' : 'strict',
+    registry: data.registry && typeof data.registry === 'object' ? data.registry : undefined,
+    enforce: Array.isArray(data.enforce) ? data.enforce : undefined,
+    deny: Array.isArray(data.deny) ? data.deny : undefined,
+    allowed_sources: Array.isArray(data.allowed_sources) ? data.allowed_sources : undefined,
+    targets: data.targets && typeof data.targets === 'object' ? data.targets : undefined,
+  };
+}
+
+export interface ResolvedPolicy {
+  policy: SkillPotPolicy;
+  file: string;
+  fromCache?: boolean;
+}
+
+export interface ResolvePolicyOptions {
+  path?: string;
+  url?: string;
+  refresh?: boolean;
+  timeoutMs?: number;
+}
+
+/**
+ * 解析并加载策略（支持本地路径与远程 HTTP/HTTPS URL，带本地缓存与离线降级）
+ */
+export async function resolvePolicy(opts: ResolvePolicyOptions = {}): Promise<ResolvedPolicy | null> {
+  const targetUrl =
+    opts.url ||
+    (opts.path && isUrl(opts.path) ? opts.path : undefined) ||
+    (!opts.path ? process.env.SKILLPOT_POLICY_URL : undefined);
+
+  if (targetUrl) {
+    const cacheFile = policyCacheFileFor(targetUrl);
+    const timeoutMs = opts.timeoutMs ?? 5000;
+
+    if (!opts.refresh) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(targetUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': `skillpot/${VERSION}`,
+            Accept: 'text/yaml, text/x-yaml, application/yaml, text/plain, */*',
+          },
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        }
+        const text = await res.text();
+        fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+        writeFileAtomic(cacheFile, text);
+        return {
+          policy: parsePolicyContent(text, targetUrl),
+          file: targetUrl,
+          fromCache: false,
+        };
+      } catch (e) {
+        // 网络请求失败或超时，尝试从离线缓存读取
+        if (fs.existsSync(cacheFile)) {
+          const text = fs.readFileSync(cacheFile, 'utf8');
+          return {
+            policy: parsePolicyContent(text, `${targetUrl} (离线缓存: ${cacheFile})`),
+            file: targetUrl,
+            fromCache: true,
+          };
+        }
+        throw new Error(`获取远程策略失败 (${targetUrl})：${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      // 强制刷新
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(targetUrl, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': `skillpot/${VERSION}`,
+            Accept: 'text/yaml, text/x-yaml, application/yaml, text/plain, */*',
+          },
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        }
+        const text = await res.text();
+        fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+        writeFileAtomic(cacheFile, text);
+        return {
+          policy: parsePolicyContent(text, targetUrl),
+          file: targetUrl,
+          fromCache: false,
+        };
+      } catch (e) {
+        throw new Error(`刷新远程策略失败 (${targetUrl})：${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+
+  return loadPolicy(opts.path);
+}
 
 /**
  * 寻找策略文件路径。查找优先级：
@@ -70,9 +209,28 @@ export function findPolicyFile(explicitPath?: string): string | undefined {
 /**
  * 加载并校验策略文件。未找到时返回 null。
  */
-export function loadPolicy(explicitPath?: string): { policy: SkillPotPolicy; file: string } | null {
+export function loadPolicy(explicitPath?: string): { policy: SkillPotPolicy; file: string; fromCache?: boolean } | null {
+  if (explicitPath && isUrl(explicitPath)) {
+    const cacheFile = policyCacheFileFor(explicitPath);
+    if (fs.existsSync(cacheFile)) {
+      const raw = fs.readFileSync(cacheFile, 'utf8');
+      return { policy: parsePolicyContent(raw, explicitPath), file: explicitPath, fromCache: true };
+    }
+    throw new Error(`指定的远程策略 URL (${explicitPath}) 尚未缓存，请先使用 skillpot policy check/apply --url 下载`);
+  }
+
   const file = findPolicyFile(explicitPath);
-  if (!file) return null;
+  if (!file) {
+    const envUrl = process.env.SKILLPOT_POLICY_URL;
+    if (envUrl && isUrl(envUrl)) {
+      const cacheFile = policyCacheFileFor(envUrl);
+      if (fs.existsSync(cacheFile)) {
+        const raw = fs.readFileSync(cacheFile, 'utf8');
+        return { policy: parsePolicyContent(raw, envUrl), file: envUrl, fromCache: true };
+      }
+    }
+    return null;
+  }
 
   let raw: string;
   try {
@@ -81,33 +239,7 @@ export function loadPolicy(explicitPath?: string): { policy: SkillPotPolicy; fil
     throw new Error(`读取策略文件失败 (${file})：${e instanceof Error ? e.message : String(e)}`);
   }
 
-  let data: any;
-  try {
-    data = parse(raw);
-  } catch (e) {
-    throw new Error(`解析策略文件失败 (${file})：${e instanceof Error ? e.message : String(e)}`);
-  }
-
-  if (!data || typeof data !== 'object') {
-    throw new Error(`策略文件内容无效 (${file})`);
-  }
-
-  if (data.version !== 1) {
-    throw new Error(`不支持的策略文件版本：${data.version}（当前仅支持 version: 1）`);
-  }
-
-  const policy: SkillPotPolicy = {
-    version: 1,
-    name: typeof data.name === 'string' ? data.name : undefined,
-    mode: data.mode === 'audit' ? 'audit' : 'strict',
-    registry: data.registry && typeof data.registry === 'object' ? data.registry : undefined,
-    enforce: Array.isArray(data.enforce) ? data.enforce : undefined,
-    deny: Array.isArray(data.deny) ? data.deny : undefined,
-    allowed_sources: Array.isArray(data.allowed_sources) ? data.allowed_sources : undefined,
-    targets: data.targets && typeof data.targets === 'object' ? data.targets : undefined,
-  };
-
-  return { policy, file };
+  return { policy: parsePolicyContent(raw, file), file };
 }
 
 /**

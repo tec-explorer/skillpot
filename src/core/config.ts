@@ -3,7 +3,7 @@ import path from 'node:path';
 import { parse, stringify } from 'yaml';
 import { SkillPotConfig, SkillPotState } from '../types';
 import { configPath, skillpotHome, statePath, storeDir } from '../paths';
-import { writeFileAtomic } from '../util/fsx';
+import { writeFileAtomic, withLockSync } from '../util/fsx';
 
 export function emptyConfig(): SkillPotConfig {
   return { version: 1, skills: {}, sources: [] };
@@ -60,9 +60,11 @@ export function writeLock(config: SkillPotConfig): void {
 }
 
 export function saveConfig(config: SkillPotConfig): void {
-  fs.mkdirSync(skillpotHome(), { recursive: true });
-  writeFileAtomic(configPath(), stringify(config));
-  writeLock(config);
+  withLockSync(() => {
+    fs.mkdirSync(skillpotHome(), { recursive: true });
+    writeFileAtomic(configPath(), stringify(config));
+    writeLock(config);
+  });
 }
 
 export function emptyState(): SkillPotState {
@@ -95,8 +97,10 @@ export function loadState(): SkillPotState {
 }
 
 export function saveState(state: SkillPotState): void {
-  fs.mkdirSync(skillpotHome(), { recursive: true });
-  writeFileAtomic(statePath(), JSON.stringify(state, null, 2) + '\n');
+  withLockSync(() => {
+    fs.mkdirSync(skillpotHome(), { recursive: true });
+    writeFileAtomic(statePath(), JSON.stringify(state, null, 2) + '\n');
+  });
 }
 
 /** 建立中央仓库骨架；幂等 */

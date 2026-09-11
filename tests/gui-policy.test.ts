@@ -239,4 +239,44 @@ deny:
     expect(body.registryStatus.url).toBe('https://skills.sh');
     expect(body.registryStatus.isPrivate).toBe(false);
   });
+
+  it('GET /api/policy/status 与 POST /api/policy/check 支持远程 url 参数', async () => {
+    const crypto = await import('node:crypto');
+    const url = 'https://enterprise.internal/policy.yaml';
+    const hash = crypto.createHash('sha256').update(url).digest('hex').slice(0, 16);
+    const cacheFile = path.join(sandboxDir, '.skillpot', 'cache', 'policy', `${hash}.yaml`);
+    fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+    fs.writeFileSync(
+      cacheFile,
+      'version: 1\nname: Remote Enterprise\nmode: strict\n',
+      'utf8',
+    );
+
+    const statusRes = await handleApiRequest(
+      'GET',
+      '/api/policy/status',
+      new URLSearchParams({ url }),
+      null,
+      TOKEN,
+      undefined,
+    );
+    expect(statusRes!.status).toBe(200);
+    const body = statusRes!.body as any;
+    expect(body.hasPolicy).toBe(true);
+    expect(body.file).toBe(url);
+    expect(body.policy.name).toBe('Remote Enterprise');
+    expect(body.fromCache).toBe(true);
+
+    const checkRes = await handleApiRequest(
+      'POST',
+      '/api/policy/check',
+      NO_QUERY,
+      { url },
+      TOKEN,
+      TOKEN,
+    );
+    expect(checkRes!.status).toBe(200);
+    const checkBody = checkRes!.body as any;
+    expect(checkBody.checkResult.compliant).toBe(true);
+  });
 });

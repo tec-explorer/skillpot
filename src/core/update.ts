@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { skillDir } from '../paths';
 import { loadConfig, saveConfig } from './config';
 import { dirChecksum } from './store';
+import { cloneGitRepo, parseGitSource } from './add';
 
 const execFileP = promisify(execFile);
 
@@ -53,24 +54,21 @@ function diffTree(oldDir: string, newDir: string): UpdateDiff {
   return diff;
 }
 
-function parseGitSource(source: string): string | null {
+function stripGitPrefix(source: string): string | null {
   return source.startsWith('git:') ? source.slice(4) : null;
 }
 
 /** 浅克隆远端并计算（可选子目录的）内容摘要；调用方负责清理 tmp。异步：GUI 服务端调用时不阻塞事件循环 */
 async function fetchRemote(repoSpec: string): Promise<{ checksum: string; cloneDir: string; sub?: string }> {
-  const [url, sub] = repoSpec.split('#');
+  const parsed = parseGitSource(repoSpec);
   const cloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpot-update-'));
   try {
-    await execFileP('git', ['clone', '--depth', '1', url, cloneDir], {
-      timeout: 300_000,
-      maxBuffer: 16 * 1024 * 1024,
-    });
-    const contentDir = sub ? path.join(cloneDir, sub) : cloneDir;
+    await cloneGitRepo(parsed.url, parsed.ref, cloneDir);
+    const contentDir = parsed.subdir ? path.join(cloneDir, parsed.subdir) : cloneDir;
     if (!fs.existsSync(path.join(contentDir, 'SKILL.md'))) {
-      throw new Error(`远端 ${sub ? `#${sub} ` : ''}中没有 SKILL.md`);
+      throw new Error(`远端 ${parsed.subdir ? `#${parsed.subdir} ` : ''}中没有 SKILL.md`);
     }
-    return { checksum: dirChecksum(contentDir), cloneDir, sub };
+    return { checksum: dirChecksum(contentDir), cloneDir, sub: parsed.subdir };
   } catch (e) {
     fs.rmSync(cloneDir, { recursive: true, force: true });
     throw e;
@@ -95,7 +93,7 @@ export async function updateSkills(
       results.push({ skill: n, status: 'error', detail: 'config 中不存在' });
       continue;
     }
-    const repoSpec = parseGitSource(entry.source);
+    const repoSpec = stripGitPrefix(entry.source);
     if (!repoSpec) {
       results.push({ skill: n, status: 'local', detail: entry.source });
       continue;

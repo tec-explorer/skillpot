@@ -9,34 +9,37 @@ export interface LintIssue {
   file?: string;
 }
 
-/** 脚本静态扫描的高危模式（命中即 warn，提示风险） */
-const SCRIPT_DANGEROUS_PATTERNS: [RegExp, string][] = [
-  [/\brm\s+(?:-[a-zA-Z]+\s+)*-[a-zA-Z]*[rf]/, 'rm 递归/强制删除'],
-  [/\bcurl\s+[^\n|]*\|\s*(?:ba|z)?sh\b/, 'curl 管道执行脚本'],
-  [/\bwget\s+[^\n|]*\|\s*(?:ba|z)?sh\b/, 'wget 管道执行脚本'],
-  [/\bsudo\b/, 'sudo 提权'],
-  [/\bchmod\s+777\b/, 'chmod 777 开放写权限'],
+/** 脚本静态扫描的高危模式（命中即 warn，提示风险，携带标准 rule id） */
+const SCRIPT_DANGEROUS_PATTERNS: [RegExp, string, string][] = [
+  [/\brm\s+(?:-[a-zA-Z]+\s+)*-[a-zA-Z]*[rf]/, 'rm 递归/强制删除', 'script/dangerous-command'],
+  [/\bcurl\s+[^\n|]*\|\s*(?:ba|z)?sh\b/, 'curl 管道执行脚本', 'script/dangerous-command'],
+  [/\bwget\s+[^\n|]*\|\s*(?:ba|z)?sh\b/, 'wget 管道执行脚本', 'script/dangerous-command'],
+  [/\bsudo\b/, 'sudo 提权', 'script/dangerous-command'],
+  [/\bchmod\s+777\b/, 'chmod 777 开放写权限', 'script/dangerous-command'],
   // —— 凭据与敏感信息（§9.1：读取 env / credentials）——
-  [/\.ssh[/']|\.aws[/']|\.kube[/']|\.netrc\b/, '触碰 SSH/云厂商凭据文件'],
+  [/\.ssh[/']|\.aws[/']|\.kube[/']|\.netrc\b/, '触碰 SSH/云厂商凭据文件', 'script/sensitive-credential'],
   [
     /\b(?:API[_-]?KEY|APIKEY|SECRET[_-]?KEY|ACCESS[_-]?TOKEN|PRIVATE[_-]?KEY|AWS_SECRET[_-]?ACCESS[_-]?KEY)\b/i,
     '引用密钥类标识符',
+    'script/sensitive-credential',
   ],
-  [/\bprintenv\b/, 'printenv 导出环境变量'],
+  [/\bprintenv\b/, 'printenv 导出环境变量', 'script/sensitive-credential'],
   [
     /process\.env\.[A-Z_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)\w*/i,
     '读取 Node 密钥类环境变量',
+    'script/sensitive-credential',
   ],
   // —— 外发数据（§9.1：外发网络请求）——
   [
     /\bcurl\b[^\n]*(?:-X\s*(?:POST|PUT)\b|--data(?:-binary|-raw|-urlencode)?\b|--form\b|--upload-file\b|\s-T\s)/,
     'curl 向外发送数据（POST/PUT/上传）',
+    'script/data-exfiltration',
   ],
-  [/\bwget\b[^\n]*--(?:post-data|post-file)\b/, 'wget 向外发送数据'],
-  [/\bnc\b[^\n]*\s-e\b/, 'nc -e 远程执行/反弹 shell'],
-  [/\b(?:scp|rsync)\b[^\n]*\b\w+@(?!localhost|127\.0\.0\.1)/, '向远端主机拷贝文件'],
+  [/\bwget\b[^\n]*--(?:post-data|post-file)\b/, 'wget 向外发送数据', 'script/data-exfiltration'],
+  [/\bnc\b[^\n]*\s-e\b/, 'nc -e 远程执行/反弹 shell', 'script/data-exfiltration'],
+  [/\b(?:scp|rsync)\b[^\n]*\b\w+@(?!localhost|127\.0\.0\.1)/, '向远端主机拷贝文件', 'script/data-exfiltration'],
   // —— 反取证 ——
-  [/\.(?:bash|zsh)_history/, '触碰 shell 历史文件'],
+  [/\.(?:bash|zsh)_history/, '触碰 shell 历史文件', 'script/anti-forensics'],
 ];
 
 const SCRIPT_EXT = /\.(sh|bash|zsh|py|js|mjs|cjs|ts|rb|pl)$/;
@@ -89,6 +92,87 @@ function extractSkillBody(raw: string): string {
   return match ? match[1] : content;
 }
 
+export interface SuppressionRule {
+  fileRules: Set<string>;
+  ignoreAllInFile: boolean;
+  lineRules: Map<number, Set<string>>;
+  ignoreAllInLine: Set<number>;
+}
+
+/**
+ * 解析文本中的 lint 规则抑制指令：
+ * 1. 文件级/段落级：
+ *    - HTML: `<!-- skillpot-ignore [rule1, rule2] -->`
+ *    - 注释行: `// skillpot-ignore [rule1, rule2]` 或 `# skillpot-ignore [rule1, rule2]`
+ * 2. 下一行单行级：
+ *    - HTML: `<!-- skillpot-disable-next-line [rule1, rule2] -->`
+ *    - 注释行: `// skillpot-disable-next-line` 或 `# skillpot-disable-next-line`
+ */
+export function parseSuppression(text: string): SuppressionRule {
+  const fileRules = new Set<string>();
+  let ignoreAllInFile = false;
+  const lineRules = new Map<number, Set<string>>();
+  const ignoreAllInLine = new Set<number>();
+
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+
+    // <!-- skillpot-ignore [rules] --> 或 # // /* skillpot-ignore [rules]
+    const fileMatch =
+      line.match(/<!--\s*skillpot-ignore(?:\s+([a-zA-Z0-9_\-\/,\s]+))?\s*-->/) ||
+      line.match(/^(?:#|\/\/|\/\*)\s*skillpot-ignore(?:\s+([a-zA-Z0-9_\-\/,\s]+))?(?:\s*\*\/)?/);
+    if (fileMatch) {
+      const rawRules = fileMatch[1]?.trim();
+      if (!rawRules || rawRules === 'all') {
+        ignoreAllInFile = true;
+      } else {
+        for (const r of rawRules.split(/[,\s]+/).filter(Boolean)) {
+          fileRules.add(r);
+        }
+      }
+    }
+
+    // <!-- skillpot-disable-next-line [rules] --> 或 # // /* skillpot-disable-next-line [rules]
+    const nextLineMatch =
+      line.match(/<!--\s*skillpot-disable-next-line(?:\s+([a-zA-Z0-9_\-\/,\s]+))?\s*-->/) ||
+      line.match(/^(?:#|\/\/|\/\*)\s*skillpot-disable-next-line(?:\s+([a-zA-Z0-9_\-\/,\s]+))?(?:\s*\*\/)?/);
+    if (nextLineMatch) {
+      const targetLine = lineNum + 1;
+      const rawRules = nextLineMatch[1]?.trim();
+      if (!rawRules || rawRules === 'all') {
+        ignoreAllInLine.add(targetLine);
+      } else {
+        let set = lineRules.get(targetLine);
+        if (!set) {
+          set = new Set<string>();
+          lineRules.set(targetLine, set);
+        }
+        for (const r of rawRules.split(/[,\s]+/).filter(Boolean)) {
+          set.add(r);
+        }
+      }
+    }
+  }
+
+  return { fileRules, ignoreAllInFile, lineRules, ignoreAllInLine };
+}
+
+export function isSuppressed(
+  suppression: SuppressionRule,
+  rule: string | undefined,
+  lineNum?: number,
+): boolean {
+  if (suppression.ignoreAllInFile) return true;
+  if (rule && suppression.fileRules.has(rule)) return true;
+  if (lineNum !== undefined) {
+    if (suppression.ignoreAllInLine.has(lineNum)) return true;
+    if (rule && suppression.lineRules.get(lineNum)?.has(rule)) return true;
+  }
+  return false;
+}
+
 /** 单个 skill 目录的安全与质量检查 */
 export function lintSkill(dir: string): LintIssue[] {
   const issues: LintIssue[] = [];
@@ -111,17 +195,21 @@ export function lintSkill(dir: string): LintIssue[] {
     ];
   }
 
+  const suppression = parseSuppression(rawSkillMd);
+
   // 1. Frontmatter 检查
   const meta = readSkillMeta(dir);
   if (!meta) {
-    issues.push({
-      level: 'error',
-      message: 'SKILL.md frontmatter 无法解析',
-      rule: 'meta/invalid-frontmatter',
-      file: 'SKILL.md',
-    });
+    if (!isSuppressed(suppression, 'meta/invalid-frontmatter')) {
+      issues.push({
+        level: 'error',
+        message: 'SKILL.md frontmatter 无法解析',
+        rule: 'meta/invalid-frontmatter',
+        file: 'SKILL.md',
+      });
+    }
   } else {
-    if (!meta.name) {
+    if (!meta.name && !isSuppressed(suppression, 'meta/missing-name')) {
       issues.push({
         level: 'warn',
         message: 'frontmatter 缺少 name（安装时将回退为目录名）',
@@ -130,21 +218,21 @@ export function lintSkill(dir: string): LintIssue[] {
       });
     }
     const desc = typeof meta.description === 'string' ? meta.description : '';
-    if (!desc) {
+    if (!desc && !isSuppressed(suppression, 'meta/missing-description')) {
       issues.push({
         level: 'error',
         message: 'frontmatter 缺少 description——Agent 依赖它判断何时触发',
         rule: 'meta/missing-description',
         file: 'SKILL.md',
       });
-    } else if (desc.length < 20) {
+    } else if (desc.length < 20 && !isSuppressed(suppression, 'meta/short-description')) {
       issues.push({
         level: 'warn',
         message: 'description 过短（<20 字符），跨 Agent 触发可能不稳定',
         rule: 'meta/short-description',
         file: 'SKILL.md',
       });
-    } else if (desc.length > 1024) {
+    } else if (desc.length > 1024 && !isSuppressed(suppression, 'meta/long-description')) {
       issues.push({
         level: 'warn',
         message: 'description 过长（>1024 字符）',
@@ -156,16 +244,35 @@ export function lintSkill(dir: string): LintIssue[] {
 
   // 2. SKILL.md 正文扫描（Phase 2: 提示词注入、隐藏 HTML 注释、Unicode 零宽混淆、Base64 载荷、运行时远程拉取）
   const body = extractSkillBody(rawSkillMd);
+  const bodyOffsetInRaw = rawSkillMd.indexOf(body);
+  const getLineNum = (indexInBody: number) => {
+    const abs = (bodyOffsetInRaw >= 0 ? bodyOffsetInRaw : 0) + indexInBody;
+    return rawSkillMd.slice(0, abs).split('\n').length;
+  };
+
+  // 预扫描正文中的代码块区间 [start, end)
+  const codeBlockSpans: [number, number][] = [];
+  const fenceRegex = /```[\s\S]*?```/g;
+  let fm: RegExpExecArray | null = null;
+  while ((fm = fenceRegex.exec(body)) !== null) {
+    codeBlockSpans.push([fm.index, fm.index + fm[0].length]);
+  }
 
   // 2.1 提示词注入检查
   for (const [re, label] of PROMPT_INJECTION_PATTERNS) {
-    if (re.test(body)) {
-      issues.push({
-        level: 'error',
-        message: `SKILL.md 检出提示词注入风险：${label}`,
-        rule: 'security/prompt-injection',
-        file: 'SKILL.md',
-      });
+    const globalRe = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+    let m: RegExpExecArray | null = null;
+    while ((m = globalRe.exec(body)) !== null) {
+      const lineNum = getLineNum(m.index);
+      const rule = 'security/prompt-injection';
+      if (!isSuppressed(suppression, rule, lineNum)) {
+        issues.push({
+          level: 'error',
+          message: `SKILL.md 检出提示词注入风险：${label}`,
+          rule,
+          file: 'SKILL.md',
+        });
+      }
     }
   }
 
@@ -174,14 +281,22 @@ export function lintSkill(dir: string): LintIssue[] {
   let commentMatch: RegExpExecArray | null = null;
   while ((commentMatch = commentRegex.exec(body)) !== null) {
     const commentContent = commentMatch[1];
+    // 忽略 skillpot 自身合法的控制注解（如 <!-- skillpot-ignore ... -->）
+    if (/^\s*skillpot-(?:ignore|disable-next-line)\b/.test(commentContent)) {
+      continue;
+    }
     for (const pat of HIDDEN_COMMENT_SUSPICIOUS) {
       if (pat.test(commentContent)) {
-        issues.push({
-          level: 'error',
-          message: 'SKILL.md 隐藏 HTML 注释中检出注入指令或高危代码载荷',
-          rule: 'security/hidden-html-comment',
-          file: 'SKILL.md',
-        });
+        const lineNum = getLineNum(commentMatch.index);
+        const rule = 'security/hidden-html-comment';
+        if (!isSuppressed(suppression, rule, lineNum)) {
+          issues.push({
+            level: 'error',
+            message: 'SKILL.md 隐藏 HTML 注释中检出注入指令或高危代码载荷',
+            rule,
+            file: 'SKILL.md',
+          });
+        }
         break;
       }
     }
@@ -190,31 +305,53 @@ export function lintSkill(dir: string): LintIssue[] {
   // 2.3 Unicode 零宽字符混淆与双向控制符（隐蔽攻击载荷）
   // 排除可能出现的正常首字符 BOM（已在 extractSkillBody 中处理）
   if (/[\u200B\u200C\u200D\uFEFF]/.test(body)) {
-    issues.push({
-      level: 'error',
-      message: 'SKILL.md 检出零宽不可见字符混淆（Zero-Width Characters 隐蔽载荷）',
-      rule: 'security/unicode-zero-width',
-      file: 'SKILL.md',
-    });
-  }
-  if (/[\u202A-\u202E\u2066-\u2069]/.test(body)) {
-    issues.push({
-      level: 'error',
-      message: 'SKILL.md 检出双向文本欺骗字符（BiDi Override 欺骗载荷）',
-      rule: 'security/unicode-bidi-override',
-      file: 'SKILL.md',
-    });
-  }
-
-  // 2.4 正文中诱导运行时远程拉取执行
-  for (const [re, label] of REMOTE_EXEC_INSTRUCTIONS) {
-    if (re.test(body)) {
+    const rule = 'security/unicode-zero-width';
+    if (!isSuppressed(suppression, rule)) {
       issues.push({
         level: 'error',
-        message: `SKILL.md ${label}`,
-        rule: 'security/remote-fetch-exec',
+        message: 'SKILL.md 检出零宽不可见字符混淆（Zero-Width Characters 隐蔽载荷）',
+        rule,
         file: 'SKILL.md',
       });
+    }
+  }
+  if (/[\u202A-\u202E\u2066-\u2069]/.test(body)) {
+    const rule = 'security/unicode-bidi-override';
+    if (!isSuppressed(suppression, rule)) {
+      issues.push({
+        level: 'error',
+        message: 'SKILL.md 检出双向文本欺骗字符（BiDi Override 欺骗载荷）',
+        rule,
+        file: 'SKILL.md',
+      });
+    }
+  }
+
+  // 2.4 正文中诱导运行时远程拉取执行（代码块内降权为 warn，正文维持 error 阻断）
+  for (const [re, label] of REMOTE_EXEC_INSTRUCTIONS) {
+    const globalRe = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+    let m: RegExpExecArray | null = null;
+    while ((m = globalRe.exec(body)) !== null) {
+      const lineNum = getLineNum(m.index);
+      const rule = 'security/remote-fetch-exec';
+      if (isSuppressed(suppression, rule, lineNum)) continue;
+
+      const inCodeBlock = codeBlockSpans.some(([s, e]) => m!.index >= s && m!.index < e);
+      if (inCodeBlock) {
+        issues.push({
+          level: 'warn',
+          message: `SKILL.md 代码块示例中包含远程执行命令（${label}），请核实安全性`,
+          rule,
+          file: 'SKILL.md',
+        });
+      } else {
+        issues.push({
+          level: 'error',
+          message: `SKILL.md ${label}`,
+          rule,
+          file: 'SKILL.md',
+        });
+      }
     }
   }
 
@@ -223,13 +360,15 @@ export function lintSkill(dir: string): LintIssue[] {
     /(?:echo\s+['"]?[A-Za-z0-9+/=]+['"]?\s*\|\s*base64\s+-(?:d|-decode|D)\b)\s*\|\s*(?:ba|z)?sh/i;
   const evalBase64Regex = /\beval\s*\(\s*(?:Buffer\.from\([^)]*base64|atob\()/i;
   if (base64ExecRegex.test(body) || evalBase64Regex.test(body)) {
-
-    issues.push({
-      level: 'error',
-      message: 'SKILL.md 检出 Base64 隐蔽解码并执行载荷',
-      rule: 'security/base64-exec',
-      file: 'SKILL.md',
-    });
+    const rule = 'security/base64-exec';
+    if (!isSuppressed(suppression, rule)) {
+      issues.push({
+        level: 'error',
+        message: 'SKILL.md 检出 Base64 隐蔽解码并执行载荷',
+        rule,
+        file: 'SKILL.md',
+      });
+    }
   }
 
   // 3. 依赖声明生命周期钩子（package.json postinstall 等价物）
@@ -293,33 +432,46 @@ export function lintSkill(dir: string): LintIssue[] {
       continue;
     }
     const rel = path.relative(dir, s);
+    const scriptSuppression = parseSuppression(text);
 
     // 脚本中隐蔽混淆与 Base64 解码执行同样属于致命 error
     if (/[\u200B\u200C\u200D\uFEFF]/.test(text)) {
-      issues.push({
-        level: 'error',
-        message: `${rel} 检出零宽字符混淆`,
-        rule: 'security/unicode-zero-width',
-        file: rel,
-      });
+      const rule = 'security/unicode-zero-width';
+      if (!isSuppressed(scriptSuppression, rule)) {
+        issues.push({
+          level: 'error',
+          message: `${rel} 检出零宽字符混淆`,
+          rule,
+          file: rel,
+        });
+      }
     }
     if (base64ExecRegex.test(text) || evalBase64Regex.test(text)) {
-      issues.push({
-        level: 'error',
-        message: `${rel} 检出 Base64 解码并执行代码`,
-        rule: 'security/base64-exec',
-        file: rel,
-      });
+      const rule = 'security/base64-exec';
+      if (!isSuppressed(scriptSuppression, rule)) {
+        issues.push({
+          level: 'error',
+          message: `${rel} 检出 Base64 解码并执行代码`,
+          rule,
+          file: rel,
+        });
+      }
     }
 
     // 脚本中常见的高危模式
-    for (const [re, label] of SCRIPT_DANGEROUS_PATTERNS) {
-      if (re.test(text)) {
-        issues.push({
-          level: 'warn',
-          message: `${rel} 疑似高危操作：${label}`,
-          file: rel,
-        });
+    for (const [re, label, rule] of SCRIPT_DANGEROUS_PATTERNS) {
+      const globalRe = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+      let m: RegExpExecArray | null = null;
+      while ((m = globalRe.exec(text)) !== null) {
+        const lineNum = text.slice(0, m.index).split('\n').length;
+        if (!isSuppressed(scriptSuppression, rule, lineNum)) {
+          issues.push({
+            level: 'warn',
+            message: `${rel} 疑似高危操作：${label}`,
+            rule,
+            file: rel,
+          });
+        }
       }
     }
   }

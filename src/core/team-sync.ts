@@ -1,7 +1,8 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { parse, stringify } from 'yaml';
 import { skillDir } from '../paths';
-import { loadConfig, loadState } from './config';
+import { loadConfig, loadState, saveConfig } from './config';
 import { exposedTargets } from './expose';
 import { addSkill, isGitSource } from './add';
 import { enableSkill } from './sync';
@@ -13,20 +14,26 @@ import { allTargetIds } from '../agents/registry';
  * 团队对齐（主线 B / 产品计划 M2 项目级配置）：
  * - `.skillpot.yaml` 随项目仓库提交，声明本项目需要哪些 skill（来源 + 可选版本锁 + 可选开放矩阵）
  * - `skillpot sync` 让成员本机对齐清单：装缺失、重装与版本锁不一致的、应用开放矩阵
- * - `skillpot sync --export` 从当前中央仓库导出清单（本地来源会警告——队友无法对齐）
+ * - `skillpot sync --export` 从当前中央仓库导出清单（本地来源可配合 --bundle-local 内联打包）
  *
  * 对齐语义（可预期优先）：
  * - 清单带 checksum：本机不一致 → 重装对齐；一致或未声明 → 只保证已装，不主动更新
  * - expose 只做"开启声明为 true 的 Agent"，不主动关闭用户自行开放的
  */
 
+export interface ProjectSkillBundle {
+  files: Record<string, string>;
+}
+
 export interface ProjectSkillEntry {
-  /** git:<url>#<subdir> 或 local:<绝对路径>（local 无法跨机器对齐，仅本机有意义） */
+  /** git:<url>#<subdir> 或 local:<绝对路径> 或 local:bundled */
   source: string;
   /** 版本锁：省略则只保证已安装，不主动更新 */
   checksum?: string;
   /** 安装/对齐后开放给哪些 Agent（仅 true 生效；省略则装完不开放） */
   expose?: Record<string, boolean>;
+  /** 内联本地技能包：直接包含文件树与内容（文本为 utf8，二进制为 base64 data-uri） */
+  bundle?: ProjectSkillBundle;
 }
 
 export interface ProjectManifest {
@@ -51,12 +58,21 @@ export function loadManifest(file: string): ProjectManifest {
 export interface ExportResult {
   manifest: ProjectManifest;
   file: string;
-  /** 导出中发现的 warning（如 local 来源无法跨机器对齐） */
+  /** 导出中发现的 warning 或提示（如 local 来源无法跨机器对齐） */
   warnings: string[];
 }
 
+export interface ExportManifestOptions {
+  /** 是否将 local 来源技能以 bundle 内联打包进清单（免 Git 分发） */
+  bundleLocal?: boolean;
+}
+
 /** 从当前中央仓库导出清单；names 缺省导出全部 */
-export function exportManifest(file: string, names?: string[]): ExportResult {
+export function exportManifest(
+  file: string,
+  names?: string[],
+  opts?: ExportManifestOptions,
+): ExportResult {
   const config = loadConfig();
   const all = Object.entries(config.skills);
   const picked = names?.length ? all.filter(([n]) => names.includes(n)) : all;
@@ -75,9 +91,39 @@ export function exportManifest(file: string, names?: string[]): ExportResult {
       expose: Object.fromEntries(ids.map((id) => [id, true])),
     };
     if (e.source.startsWith('local:')) {
-      warnings.push(
-        `'${n}' 为 local 来源（${e.source}）——队友无法从本机路径对齐，建议改为 git 源后重新导出`,
-      );
+      if (opts?.bundleLocal) {
+        const dir = skillDir(n);
+        if (fs.existsSync(dir)) {
+          const bundleFiles: Record<string, string> = {};
+          const walk = (d: string) => {
+            for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
+              const full = path.join(d, ent.name);
+              if (ent.isDirectory()) {
+                walk(full);
+              } else {
+                const rel = path.relative(dir, full).replace(/\\/g, '/');
+                const buf = fs.readFileSync(full);
+                const isBinary = buf.includes(0);
+                if (isBinary) {
+                  bundleFiles[rel] = `data:application/octet-stream;base64,${buf.toString('base64')}`;
+                } else {
+                  bundleFiles[rel] = buf.toString('utf8');
+                }
+              }
+            }
+          };
+          walk(dir);
+          skills[n].bundle = { files: bundleFiles };
+          skills[n].source = 'local:bundled';
+          warnings.push(`'${n}' 为 local 来源，已通过 --bundle-local 打包内联进清单`);
+        } else {
+          warnings.push(`'${n}' 本地中央目录缺失，无法打包`);
+        }
+      } else {
+        warnings.push(
+          `'${n}' 为 local 来源（${e.source}）——队友无法从本机路径对齐，建议改为 git 源或使用 --bundle-local 导出`,
+        );
+      }
     }
   }
   const manifest: ProjectManifest = { version: 1, skills };
@@ -121,14 +167,92 @@ export async function syncManifest(
       const installed = !!config.skills[name];
       const src = entry.source.replace(/^git:/, '');
 
-      // local 来源：机器相关，不跨机器对齐
+      // 1. 内联 bundle 来源处理（支持免外部 Git 的纯本地技能跨机器还原）
+      if (entry.bundle?.files) {
+        const dest = skillDir(name);
+        const fileCount = Object.keys(entry.bundle.files).length;
+        if (fileCount === 0) {
+          out.push({ skill: name, action: 'skip', detail: '内联 bundle 为空，无法安装' });
+          continue;
+        }
+
+        const unpackBundle = () => {
+          fs.rmSync(dest, { recursive: true, force: true });
+          fs.mkdirSync(dest, { recursive: true });
+          for (const [relPath, content] of Object.entries(entry.bundle!.files)) {
+            const fullPath = path.join(dest, relPath);
+            fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+            if (content.startsWith('data:application/octet-stream;base64,')) {
+              const b64 = content.slice('data:application/octet-stream;base64,'.length);
+              fs.writeFileSync(fullPath, Buffer.from(b64, 'base64'));
+            } else {
+              fs.writeFileSync(fullPath, content, 'utf8');
+            }
+          }
+          const checksum = dirChecksum(dest);
+          const currentConfig = loadConfig();
+          currentConfig.skills[name] = {
+            source: entry.source || 'local:bundled',
+            checksum,
+            installed_at: new Date().toISOString(),
+            expose: {},
+          };
+          saveConfig(currentConfig);
+          applyExpose(name, entry.expose);
+          return checksum;
+        };
+
+        if (!installed) {
+          if (opts.dryRun) {
+            out.push({ skill: name, action: 'install', dryRun: true, detail: '从清单内嵌 bundle 安装' });
+            continue;
+          }
+          const newChecksum = unpackBundle();
+          const detail =
+            entry.checksum && newChecksum !== entry.checksum
+              ? '已从 bundle 安装（但与清单 checksum 不一致）'
+              : '已从清单内嵌 bundle 安装';
+          out.push({ skill: name, action: 'install', detail });
+          continue;
+        }
+
+        // 已安装：比对实际内容与 checksum
+        let drifted = false;
+        if (entry.checksum) {
+          try {
+            drifted = dirChecksum(dest) !== entry.checksum;
+          } catch {
+            drifted = true;
+          }
+        }
+        if (drifted) {
+          if (opts.dryRun) {
+            out.push({
+              skill: name,
+              action: 'reinstall',
+              dryRun: true,
+              detail: '本机版本与清单锁定的 checksum 不一致，将从内嵌 bundle 重新覆盖',
+            });
+            continue;
+          }
+          unpackBundle();
+          out.push({ skill: name, action: 'reinstall', detail: '已从内嵌 bundle 重新覆盖对齐' });
+          continue;
+        }
+
+        applyExpose(name, entry.expose);
+        out.push({ skill: name, action: 'ok', detail: '已一致（内嵌 bundle）' });
+        continue;
+      }
+
+      // 2. local 来源：机器相关，不跨机器对齐
       if (entry.source.startsWith('local:')) {
         out.push({
           skill: name,
           action: installed ? 'ok' : 'skip',
           detail: installed
             ? 'local 来源，跳过对齐（仅本机有意义）'
-            : `local 来源（${entry.source}）在本机不存在，无法安装`,
+            : `local 来源（${entry.source}）在本机不存在，无法安装（建议导出时使用 --bundle-local）`,
         });
         continue;
       }
@@ -237,8 +361,10 @@ export interface ManifestInspectItem {
   checksumMatch: boolean | null;
   /** config 有登记但中央仓库目录已缺失 */
   storeMissing?: boolean;
-  /** local 来源无法跨机器对齐 */
+  /** local 来源无法跨机器对齐（若内嵌 bundle 则为 false） */
   localOnly: boolean;
+  /** 是否内联了技能完整包 */
+  bundled?: boolean;
 }
 
 export interface ManifestInspect {
@@ -256,7 +382,8 @@ export function inspectManifest(file: string): ManifestInspect {
 
   for (const [name, entry] of Object.entries(manifest.skills)) {
     const installed = !!config.skills[name];
-    const localOnly = entry.source.startsWith('local:');
+    const isBundled = !!entry.bundle?.files;
+    const localOnly = entry.source.startsWith('local:') && !isBundled;
     let checksumMatch: boolean | null = null;
     let storeMissing = false;
     if (installed && entry.checksum) {
@@ -271,7 +398,7 @@ export function inspectManifest(file: string): ManifestInspect {
       warnings.push(
         installed
           ? `'${name}' 为 local 来源，跳过对齐（仅本机有意义）`
-          : `'${name}' 为 local 来源（${entry.source}）在本机不存在，sync 将跳过`,
+          : `'${name}' 为 local 来源（${entry.source}）在本机不存在，sync 将跳过（可使用 --bundle-local）`,
       );
     }
     skills.push({
@@ -283,6 +410,7 @@ export function inspectManifest(file: string): ManifestInspect {
       checksumMatch,
       storeMissing,
       localOnly,
+      bundled: isBundled,
     });
   }
   return { file, skills, warnings };

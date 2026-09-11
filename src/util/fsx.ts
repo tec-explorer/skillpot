@@ -103,7 +103,10 @@ export function withLockSync<T>(fn: () => T, opts: { timeoutMs?: number } = {}):
   held.set(lockPath, depth + 1);
   if (depth === 0) {
     try {
-      acquire(lockPath, opts.timeoutMs ?? 5000);
+      const defaultTimeout = process.env.SKILLPOT_MUTEX_TIMEOUT_MS
+        ? parseInt(process.env.SKILLPOT_MUTEX_TIMEOUT_MS, 10)
+        : 5000;
+      acquire(lockPath, opts.timeoutMs ?? defaultTimeout);
     } catch (e) {
       held.delete(lockPath);
       throw e;

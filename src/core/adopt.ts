@@ -84,6 +84,17 @@ export interface AdoptOptions {
   dryRun?: boolean;
   /** 只处理这些 (agent, name) 组合（GUI 勾选式收编）；缺省 = 扫描到的全部 */
   only?: { agent: string; name: string }[];
+  /** 遇到中央仓库已有同名技能时的冲突处理策略：'skip'（跳过，默认）或 'rename'（自动按来源重命名，如 <name>-<agent>） */
+  onConflict?: 'skip' | 'rename';
+}
+
+function resolveConflictName(config: any, baseName: string, agentId: string): string {
+  let candidate = `${baseName}-${agentId}`;
+  let counter = 2;
+  while (!!config.skills[candidate] || fs.existsSync(skillDir(candidate))) {
+    candidate = `${baseName}-${agentId}-${counter++}`;
+  }
+  return candidate;
 }
 
 /**
@@ -149,24 +160,50 @@ function adoptUnlocked(opts: AdoptOptions = {}): AdoptReport {
         continue;
       }
       const existsInStore = !!config.skills[name] || fs.existsSync(skillDir(name));
+      let isRenamed = false;
+
+      if (existsInStore) {
+        if (opts.onConflict === 'rename') {
+          const renamed = resolveConflictName(config, name, agentId);
+          if (opts.dryRun) {
+            items.push({
+              agent: agentId,
+              name: renamed,
+              path: skill.path,
+              status: 'dry-run',
+              detail: `冲突重命名：将收编为 ${renamed}`,
+            });
+            continue;
+          }
+          name = renamed;
+          isRenamed = true;
+        } else {
+          if (opts.dryRun) {
+            items.push({
+              agent: agentId,
+              name,
+              path: skill.path,
+              status: 'exists',
+              detail: opts.move ? 'move：将把本 Agent 目录替换为 symlink' : undefined,
+            });
+            continue;
+          }
+          if (opts.move) {
+            pendingMoves.push({ agentId, name, path: skill.path, existed: true });
+          } else {
+            items.push({ agent: agentId, name: skill.name, path: skill.path, status: 'exists', detail: '中央仓库已有同名 skill' });
+          }
+          continue;
+        }
+      }
 
       if (opts.dryRun) {
         items.push({
           agent: agentId,
           name,
           path: skill.path,
-          status: existsInStore ? 'exists' : 'dry-run',
-          detail: existsInStore && opts.move ? 'move：将把本 Agent 目录替换为 symlink' : undefined,
+          status: 'dry-run',
         });
-        continue;
-      }
-
-      if (existsInStore) {
-        if (opts.move) {
-          pendingMoves.push({ agentId, name, path: skill.path, existed: true });
-        } else {
-          items.push({ agent: agentId, name, path: skill.path, status: 'exists', detail: '中央仓库已有同名 skill' });
-        }
         continue;
       }
 
@@ -182,7 +219,13 @@ function adoptUnlocked(opts: AdoptOptions = {}): AdoptReport {
         if (opts.move) {
           pendingMoves.push({ agentId, name, path: skill.path, existed: false });
         } else {
-          items.push({ agent: agentId, name, path: skill.path, status: 'imported' });
+          items.push({
+            agent: agentId,
+            name,
+            path: skill.path,
+            status: 'imported',
+            detail: isRenamed ? `同名冲突，已自动重命名为 ${name}` : undefined,
+          });
         }
       } catch (e) {
         items.push({

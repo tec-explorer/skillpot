@@ -17,12 +17,12 @@ import { uninstallSkill } from './core/uninstall';
 import { addSource, formatInstalls, getRegistryStatus, installFromDirectory, listSources, removeSource, scanSource, searchDirectory } from './core/market';
 import { runAudit } from './core/audit';
 import { exportManifest, SYNC_ACTION_LABELS, syncManifest } from './core/team-sync';
-import { disableSkill, enableSkill, broadcastSkill, isBroadcastTarget, resolveAgentIds, SyncResult } from './core/sync';
+import { disableSkill, enableSkill, broadcastSkill, isBroadcastTarget, refreshCopies, resolveAgentIds, SyncResult } from './core/sync';
 import { fixDoctor, runDoctor } from './core/doctor';
 import { adoptSkills, AdoptStatus, scanAdoptable } from './core/adopt';
 import { lintSkill, lintSummary } from './core/lint';
 import { updateSkills } from './core/update';
-import { applyPolicy, checkPolicy, DEFAULT_POLICY_FILE, generatePolicyTemplate, loadPolicy } from './core/policy';
+import { applyPolicy, checkPolicy, DEFAULT_POLICY_FILE, generatePolicyTemplate, loadPolicy, resolvePolicy } from './core/policy';
 import { startMcpServer } from './core/mcp-server';
 import { startGuiServer } from './core/gui-server';
 import { runTui } from './tui/index';
@@ -200,15 +200,16 @@ program
 program
   .command('add <source>')
   .description(
-    '安装 skill 到中央仓库（本地目录或 git URL；git 支持 repo#subdir。默认不对任何 Agent 开放）',
+    '安装 skill 到中央仓库（本地目录或 git URL；git 支持 repo@ref#subdir。默认不对任何 Agent 开放）',
   )
   .option('-n, --name <name>', '指定 skill 名（默认取 frontmatter name 或目录名）')
   .option('-f, --force', '跳过安全检查阻断，强制安装')
   .option('-p, --policy <path>', '指定策略文件路径进行合规校验')
+  .option('-r, --ref <ref>', '指定 git 来源的版本（Tag、分支名或 Commit Hash）')
   .action(
-    run(async (source: string, opts: { name?: string; force?: boolean; policy?: string }) => {
+    run(async (source: string, opts: { name?: string; force?: boolean; policy?: string; ref?: string }) => {
       const policyObj = opts.policy ? loadPolicy(opts.policy)?.policy : undefined;
-      const res = await addSkill(source, { name: opts.name, force: opts.force, policy: policyObj });
+      const res = await addSkill(source, { name: opts.name, force: opts.force, policy: policyObj, ref: opts.ref });
       console.log(pc.green(`✔ 已安装 ${res.name}`));
       if (res.description) console.log(pc.dim(`  ${res.description.slice(0, 120)}`));
       for (const i of res.lint) {
@@ -450,14 +451,19 @@ program
   .option('-f, --for <targets>', `导入后开放给哪些目标（${FOR_HELP}；默认不开放）`)
   .option('--move', '移动模式：导入（或已有同名）后把来源 Agent 目录下的原目录替换为 symlink')
   .option('--dry-run', '只报告将导入的内容，不做任何修改')
+  .option(
+    '--on-conflict <strategy>',
+    '遇到中央仓库已有同名技能时的冲突处理策略：skip（跳过，默认）或 rename（自动按来源重命名，如 <name>-<agent>）',
+  )
   .action(
-    run((opts: { from?: string; for?: string; move?: boolean; dryRun?: boolean }) => {
+    run((opts: { from?: string; for?: string; move?: boolean; dryRun?: boolean; onConflict?: 'skip' | 'rename' }) => {
       initStore();
       const report = adoptSkills({
         from: opts.from ? resolveAgentIds(opts.from) : undefined,
         enableFor: opts.for ? resolveAgentIds(opts.for) : undefined,
         move: opts.move,
         dryRun: opts.dryRun,
+        onConflict: opts.onConflict,
       });
       const label: Record<AdoptStatus, string> = {
         imported: '✔ 导入',
@@ -675,16 +681,51 @@ program
   .command('sync')
   .description('团队对齐：按项目清单（默认 ./.skillpot.yaml）安装/对齐 skill 并应用开放矩阵')
   .option('--file <path>', '清单路径（默认 ./.skillpot.yaml）')
-  .option('--export', '把当前中央仓库导出为清单（配合 --file/--skill）')
+  .option('--export', '把当前中央仓库导出为清单（配合 --file/--skill/--bundle-local）')
+  .option('--bundle-local', '导出时将 local 来源的技能以 bundle 内联打包进清单（免 Git 源协同）')
   .option('--skill <skills>', '导出时仅导出指定 skill（逗号分隔）')
   .option('--dry-run', '只展示将对齐的动作，不做任何变更')
+  .option('--refresh-copies', '一键比对并刷新所有以 copy 模式落地的 Agent 副本（检测到本地修改时自动备份防覆盖）')
   .action(
-    run(async (opts: { file?: string; export?: boolean; skill?: string; dryRun?: boolean }) => {
+    run(async (opts: { file?: string; export?: boolean; bundleLocal?: boolean; skill?: string; dryRun?: boolean; refreshCopies?: boolean }) => {
+      if (opts.refreshCopies) {
+        const res = refreshCopies();
+        if (res.total === 0) {
+          console.log(pc.dim('当前没有以 copy 模式落地的副本'));
+          return;
+        }
+        console.log(
+          renderTable(
+            ['Skill', 'Agent', '状态', '目标路径'],
+            res.details.map((d) => [
+              d.skill,
+              d.agent,
+              d.action === 'refreshed'
+                ? pc.green('已刷新')
+                : d.action === 'backed-up-and-refreshed'
+                  ? pc.yellow('已备份并刷新')
+                  : pc.dim('已是最新'),
+              d.target,
+            ]),
+          ),
+        );
+        console.log(
+          pc.green(
+            `✔ 副本刷新完成：共 ${res.total} 处，刷新 ${res.refreshed} 处（其中 ${res.backedUp} 处因包含本地修改已自动备份）`,
+          ),
+        );
+        return;
+      }
       const file = path.resolve(opts.file ?? '.skillpot.yaml');
       if (opts.export) {
-        const { manifest, warnings } = exportManifest(file, opts.skill?.split(','));
+        const { manifest, warnings } = exportManifest(file, opts.skill?.split(','), {
+          bundleLocal: opts.bundleLocal,
+        });
         console.log(pc.green(`✔ 已导出 ${Object.keys(manifest.skills).length} 个 skill → ${file}`));
-        for (const w of warnings) console.log(pc.yellow(`⚠ ${w}`));
+        for (const w of warnings) {
+          if (w.includes('--bundle-local')) console.log(pc.green(`✔ ${w}`));
+          else console.log(pc.yellow(`⚠ ${w}`));
+        }
         console.log(pc.dim('提交进项目仓库后，团队成员执行 skillpot sync 即可一键对齐'));
         return;
       }
@@ -783,20 +824,26 @@ policyCmd
   .command('check')
   .description('检查当前本机环境与已装技能是否符合企业安全治理策略')
   .option('-p, --policy <path>', '指定策略文件路径')
+  .option('-u, --url <url>', '指定企业策略远程 URL（自动缓存与离线降级）')
+  .option('--refresh', '强制从远程重新拉取最新策略，穿透本地缓存')
   .option('--ci', 'CI 模式（存在策略违规时以非零退出码阻断）')
   .option('--json', '以 JSON 输出')
   .action(
-    run((opts: { policy?: string; ci?: boolean; json?: boolean }) => {
-      const loaded = loadPolicy(opts.policy);
+    run(async (opts: { policy?: string; url?: string; refresh?: boolean; ci?: boolean; json?: boolean }) => {
+      const loaded = await resolvePolicy({
+        path: opts.policy,
+        url: opts.url,
+        refresh: opts.refresh,
+      });
       if (!loaded) {
-        throw new Error('未找到策略文件；可使用 skillpot policy init 初始化一个，或通过 -p/--policy 指定');
+        throw new Error('未找到策略文件；可使用 skillpot policy init 初始化一个，或通过 -p/--policy 或 -u/--url 指定');
       }
       const res = checkPolicy(loaded.policy, loaded.file);
       if (opts.json) {
-        console.log(JSON.stringify(res, null, 2));
+        console.log(JSON.stringify({ ...res, fromCache: loaded.fromCache }, null, 2));
       } else {
         console.log(pc.bold(`=== 策略合规检查：${loaded.policy.name || '安全基线'} ===`));
-        console.log(`策略文件: ${res.file}`);
+        console.log(`策略文件: ${res.file}${loaded.fromCache ? pc.yellow(' (离线缓存降级)') : ''}`);
         console.log(
           `执行模式: ${res.policy.mode === 'audit' ? pc.yellow('audit (仅告警)') : pc.cyan('strict (强制阻断)')}`,
         );
@@ -829,15 +876,25 @@ policyCmd
   .command('apply')
   .description('自动执行策略修复：安装强制技能、开启目标、撤下并卸载禁用技能')
   .option('-p, --policy <path>', '指定策略文件路径')
+  .option('-u, --url <url>', '指定企业策略远程 URL（自动缓存与离线降级）')
+  .option('--refresh', '强制从远程重新拉取最新策略，穿透本地缓存')
   .option('--dry-run', '仅预览将要执行的策略修复动作，不实际修改磁盘或配置')
   .option('-f, --force', '强制放行安装过程中的提示词阻断检查')
   .action(
-    run(async (opts: { policy?: string; dryRun?: boolean; force?: boolean }) => {
-      const loaded = loadPolicy(opts.policy);
+    run(async (opts: { policy?: string; url?: string; refresh?: boolean; dryRun?: boolean; force?: boolean }) => {
+      const loaded = await resolvePolicy({
+        path: opts.policy,
+        url: opts.url,
+        refresh: opts.refresh,
+      });
       if (!loaded) {
-        throw new Error('未找到策略文件；可使用 skillpot policy init 初始化一个，或通过 -p/--policy 指定');
+        throw new Error('未找到策略文件；可使用 skillpot policy init 初始化一个，或通过 -p/--policy 或 -u/--url 指定');
       }
-      console.log(pc.bold(`正在应用策略：${loaded.policy.name || '安全基线'} (${loaded.file})`));
+      console.log(
+        pc.bold(
+          `正在应用策略：${loaded.policy.name || '安全基线'} (${loaded.file})${loaded.fromCache ? pc.yellow(' [离线缓存降级]') : ''}`,
+        ),
+      );
       if (opts.dryRun) console.log(pc.yellow('【DRY-RUN 预览模式】不实际修改磁盘或配置\n'));
 
       const res = await applyPolicy(loaded.policy, loaded.file, {

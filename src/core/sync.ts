@@ -7,6 +7,7 @@ import { BROADCAST_AGENT_ID, allAgentIds, allTargetIds, getAgent, isChannel } fr
 import { SkillPotConfig, SkillPotPolicy, SkillPotState } from '../types';
 import { withLockSync } from '../util/fsx';
 import { checkEnableAllowed, loadPolicy } from './policy';
+import { dirChecksum } from './store';
 
 export interface SkippedItem {
   agent: string;
@@ -93,6 +94,29 @@ function copyInto(src: string, target: string): void {
   fs.cpSync(src, target, { recursive: true, dereference: true });
 }
 
+function hasDirectoryDrift(target: string, src: string): boolean {
+  try {
+    if (!fs.existsSync(target) || !fs.existsSync(src)) return false;
+    return dirChecksum(target) !== dirChecksum(src);
+  } catch {
+    return false;
+  }
+}
+
+function backupCopyDir(target: string, reason: string): string | null {
+  try {
+    const backup = `${target}.backup.${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    fs.cpSync(target, backup, { recursive: true });
+    console.warn(
+      pc.yellow(`⚠ 检测到副本包含本地修改，已自动备份至 ${backup}（原因：${reason}）：${target}`),
+    );
+    return backup;
+  } catch (err: any) {
+    console.warn(pc.yellow(`⚠ 自动备份副本失败：${err?.message}`));
+    return null;
+  }
+}
+
 function safeReadlink(p: string): string {
   try {
     return fs.readlinkSync(p);
@@ -137,7 +161,10 @@ function enableOne(
   if (kind === 'copy') {
     if (existing) {
       if (ledgerHas(state, skill, agentId, target)) {
-        // 已是本工具的副本：重新拷贝以刷新内容（enable 即同步）
+        // 已是本工具的副本：若包含本地修改则先备份，再重新拷贝以刷新内容（enable 即同步）
+        if (hasDirectoryDrift(target, src)) {
+          backupCopyDir(target, '重新 enable 覆盖前备份');
+        }
         fs.rmSync(target, { recursive: true, force: true });
         copyInto(src, target);
         addLedger(state, skill, agentId, target, 'copy');
@@ -226,8 +253,11 @@ function disableOne(
   const st = lstatOrNull(target);
 
   if (st) {
-    // copy 副本：台账内即本工具创建，直接删除
+    // copy 副本：台账内即本工具创建，若检测到本地修改则先备份，再删除
     if (!st.isSymbolicLink() && ledgerHas(state, skill, agentId, target)) {
+      if (srcReal && hasDirectoryDrift(target, srcReal)) {
+        backupCopyDir(target, 'disable 移除前备份');
+      }
       fs.rmSync(target, { recursive: true, force: true });
       dropLedger(state, skill, agentId);
       if (entry) entry.expose[agentId] = false;
@@ -381,3 +411,70 @@ export function broadcastSkill(skill: string, off = false): { changed: boolean; 
 export function isBroadcastTarget(agentId: string): boolean {
   return isChannel(agentId);
 }
+
+export interface RefreshCopiesDetail {
+  skill: string;
+  agent: string;
+  target: string;
+  action: 'refreshed' | 'up-to-date' | 'backed-up-and-refreshed';
+}
+
+export interface RefreshCopiesResult {
+  total: number;
+  refreshed: number;
+  backedUp: number;
+  details: RefreshCopiesDetail[];
+}
+
+/**
+ * 一键比对并刷新所有处于 copy 落地状态的副本：
+ * 若中央 store 已更新或副本包含本地改动，安全备份后重新同步对齐。
+ */
+export function refreshCopies(): RefreshCopiesResult {
+  return withLockSync(() => {
+    const config = loadConfig();
+    const state = loadState();
+    const copyLinks = state.links.filter((l) => l.kind === 'copy');
+
+    const details: RefreshCopiesDetail[] = [];
+    let refreshed = 0;
+    let backedUp = 0;
+
+    for (const link of copyLinks) {
+      const src = skillDir(link.skill);
+      const target = link.link_path;
+      if (!fs.existsSync(src)) continue;
+
+      if (!fs.existsSync(target)) {
+        copyInto(src, target);
+        refreshed++;
+        details.push({ skill: link.skill, agent: link.agent, target, action: 'refreshed' });
+        continue;
+      }
+
+      if (hasDirectoryDrift(target, src)) {
+        backupCopyDir(target, '一键刷新副本');
+        backedUp++;
+        fs.rmSync(target, { recursive: true, force: true });
+        copyInto(src, target);
+        refreshed++;
+        details.push({
+          skill: link.skill,
+          agent: link.agent,
+          target,
+          action: 'backed-up-and-refreshed',
+        });
+      } else {
+        details.push({ skill: link.skill, agent: link.agent, target, action: 'up-to-date' });
+      }
+    }
+
+    return {
+      total: copyLinks.length,
+      refreshed,
+      backedUp,
+      details,
+    };
+  });
+}
+

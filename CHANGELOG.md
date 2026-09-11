@@ -3,6 +3,45 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.19.0] - 2026-09-11
+
+平台能力、团队协同与多源安全治理全面升级：远程策略中心、离线技能内联打包、GUI 提示词深度抽屉、局部安全抑制与跨进程防竞态锁固。
+
+### Added
+- **企业 Remote Policy 远程 URL 与离线容灾缓存 (`src/core/policy.ts`)**：
+  - 新增 `resolvePolicy()`，支持从企业内网/公网 HTTP/HTTPS 远程拉取治理策略并原子缓存至 `~/.skillpot/cache/policy/<url-hash>.yaml`。
+  - **离线平滑降级**：当内网抖动、网络异常或服务不可达时，自动平滑回退使用本地磁盘缓存（标记 `fromCache: true` 并给出黄色预警），确保 CI/CD 流程与日常开发不受网络故障阻断。
+  - `skillpot policy check` 与 `skillpot policy apply` 新增 `-u, --url <url>` 与 `--refresh`（强制穿透缓存）参数；支持环境变量 `SKILLPOT_POLICY_URL`。
+  - 新增测试套件 `tests/remote-policy.test.ts`。
+- **团队 Manifest 本地技能内联打包 (`src/core/team-sync.ts`)**：
+  - `ProjectSkillEntry` 结构扩充 `bundle: { files: Record<string, string> }` 规范。
+  - 导出命令扩充 `skillpot sync --export --bundle-local`：递归打包纯本地技能的提示词正文、子目录脚本与二进制资源（Base64 data-uri），在 Git PR 中可直接 diff 审查提示词演进，消除 local 跨机器同步壁垒。
+  - `skillpot sync` 自动从清单内嵌 bundle 还原目录结构并挂载 Agent 矩阵；本地手改发生校验和偏离时自动覆盖修复对齐。
+  - 新增测试套件 `tests/team-bundle.test.ts`。
+- **Web GUI 市场技能详情抽屉与 Prompt 深度预览 (`src/core/gui-server.ts`, `src/gui/views/MarketView.tsx`)**：
+  - 后端提供 `GET /api/market/preview?url=...&subdir=...`，返回完整 frontmatter 元数据、文件树、`SKILL.md` 全文与静态安全扫描结果。
+  - 前端新增 `MarketPreviewModal.tsx` 详情抽屉，支持点击技能名或「详情」按钮一键打开；提供安全扫描风险徽章、文件树列表、`SKILL.md` 指令行数与代码高亮，支持在抽屉内一键安装到中央仓库。
+- **Git 来源 Tag/Branch/Commit 版本锁定与浅克隆 (`src/core/add.ts`, `src/core/update.ts`)**：
+  - 支持 `repo.git@v1.0.0#subdir`、`repo#subdir@v1.0.0` 等丰富 URL 语法。
+  - `skillpot add` 新增 `-r, --ref <ref>` 参数；采用 `git clone --depth 1 -b <ref>` 极速浅克隆并兼容 commit hash。
+  - 新增测试套件 `tests/git-ref.test.ts`。
+- **B 档 Copy 落地模式数据安全防护与一键刷新 (`src/core/sync.ts`)**：
+  - 引入 `hasDirectoryDrift` 检测；在 `disable` 与 `enable` 覆盖时，若检测到副本被开发者修改，自动备份至 `${target}.backup.<timestamp>-<rand>`，杜绝抹除调试代码。
+  - `skillpot sync` 新增 `--refresh-copies` 参数，一键比对并刷新所有落地的 copy 副本。
+  - 新增测试套件 `tests/copy-safety.test.ts`。
+- **`adopt` 存量收编同名冲突智能重命名 (`src/core/adopt.ts`)**：
+  - `skillpot adopt` 新增 `--on-conflict <skip|rename>` 参数；同名冲突时自动更名为 `${name}-${agentId}` 收编进中央仓库，零资产丢失。
+  - 新增测试套件 `tests/adopt-conflict.test.ts`。
+
+### Changed
+- **Lint 局部规则抑制与代码块智能降噪 (`src/core/lint.ts`)**：
+  - 规范并稳定了所有安全规则 ID（如 `script/dangerous-command`、`security/remote-fetch-exec` 等）。
+  - 支持 `<!-- skillpot-ignore [rules] -->`（文件级）与 `<!-- skillpot-disable-next-line [rules] -->`（单行级）注解抑制机制。
+  - 智能区分 Markdown 正文与示例代码块（Fenced Code Blocks）；说明文档中的 `curl | bash` 示例从强阻断降级为非阻塞 `warn` 告警，消除开发者“安全疲劳”。
+  - 新增测试套件 `tests/lint-suppression.test.ts`。
+- **配置与台账跨进程互斥锁硬化 (`src/core/config.ts`, `src/core/market.ts`)**：
+  - 底层 `saveConfig`、`saveState` 以及市场源读写统一包裹进可重入文件互斥锁 `withLockSync`，彻底隔绝 CLI 与长开 Web GUI 之间的并发写竞争。
+
 ## [0.18.0] - 2026-09-11
 
 工程微调与跨平台韧性：Agent 检测本地文件缓存与 Windows 符号链接平滑降级。

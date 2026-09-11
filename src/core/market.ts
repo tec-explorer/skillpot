@@ -3,11 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { marketCacheDir } from '../paths';
+import { marketCacheDir, skillDir } from '../paths';
 import { loadConfig, saveConfig } from './config';
-import { readSkillMeta } from '../util/frontmatter';
+import { readSkillMeta, SkillMeta } from '../util/frontmatter';
 import { addSkill, isGitSource, AddResult } from './add';
 import { ConfigSource, RegistryStatus, SkillPotPolicy } from '../types';
+import { withLockSync } from '../util/fsx';
+import { lintSkill } from './lint';
 
 const execFileP = promisify(execFile);
 
@@ -31,7 +33,12 @@ export interface SourceInfo {
 /** 源列表 = 内置源 + config.yaml sources 段 */
 export function listSources(): SourceInfo[] {
   const config = loadConfig();
-  return [...BUILTIN_SOURCES, ...(config.sources ?? []).map((s) => ({ name: s.name ?? urlLabel(s.url), url: s.url, builtin: false }))];
+  const custom: SourceInfo[] = (config.sources ?? []).map((s) => ({
+    name: s.name ?? urlLabel(s.url),
+    url: s.url,
+    builtin: false,
+  }));
+  return [...BUILTIN_SOURCES, ...custom];
 }
 
 function urlLabel(url: string): string {
@@ -42,26 +49,30 @@ function urlLabel(url: string): string {
 export function addSource(url: string, name?: string): SourceInfo {
   if (!isGitSource(url)) throw new Error(`不是合法的 git 地址：${url}`);
   if (BUILTIN_SOURCES.some((s) => s.url === url)) throw new Error('内置源已存在，无需添加');
-  const config = loadConfig();
-  config.sources = config.sources ?? [];
-  if (config.sources.some((s) => s.url === url)) throw new Error(`源已存在：${url}`);
-  const entry: ConfigSource = {
-    url,
-    name: name?.trim() || undefined,
-    added_at: new Date().toISOString(),
-  };
-  config.sources.push(entry);
-  saveConfig(config);
-  return { name: entry.name ?? urlLabel(url), url, builtin: false };
+  return withLockSync(() => {
+    const config = loadConfig();
+    config.sources = config.sources ?? [];
+    if (config.sources.some((s) => s.url === url)) throw new Error(`源已存在：${url}`);
+    const entry: ConfigSource = {
+      url,
+      name: name?.trim() || undefined,
+      added_at: new Date().toISOString(),
+    };
+    config.sources.push(entry);
+    saveConfig(config);
+    return { name: entry.name ?? urlLabel(url), url, builtin: false };
+  });
 }
 
 export function removeSource(url: string): void {
   if (BUILTIN_SOURCES.some((s) => s.url === url)) throw new Error('内置源不可移除');
-  const config = loadConfig();
-  const before = (config.sources ?? []).length;
-  config.sources = (config.sources ?? []).filter((s) => s.url !== url);
-  if (config.sources.length === before) throw new Error(`源不存在：${url}`);
-  saveConfig(config);
+  withLockSync(() => {
+    const config = loadConfig();
+    const before = (config.sources ?? []).length;
+    config.sources = (config.sources ?? []).filter((s) => s.url !== url);
+    if (config.sources.length === before) throw new Error(`源不存在：${url}`);
+    saveConfig(config);
+  });
   // 缓存一并清理
   fs.rmSync(cacheDirFor(url), { recursive: true, force: true });
 }
@@ -150,6 +161,70 @@ export async function installFromMarket(
     throw new Error(`非法子目录：${subdir}`);
   }
   return addSkill(`${url}#${subdir}`, { name: opts.name, for: opts.for, force: opts.force });
+}
+
+export interface MarketSkillPreview {
+  name: string;
+  subdir: string;
+  url: string;
+  description: string;
+  meta: SkillMeta | null;
+  files: string[];
+  skillMd: string | null;
+  lint: ReturnType<typeof lintSkill>;
+  installed: boolean;
+}
+
+/**
+ * 预览市场源中指定子目录的 skill（SKILL.md 全文、提示词、文件树、静态安全扫描结果）
+ */
+export function previewMarketSkill(url: string, subdir: string): MarketSkillPreview | null {
+  if (!subdir || subdir.includes('..') || subdir.startsWith('/')) {
+    throw new Error(`非法子目录：${subdir}`);
+  }
+  const dir = cacheDirFor(url);
+  const targetDir = path.join(dir, subdir);
+  const mdPath = path.join(targetDir, 'SKILL.md');
+  if (!fs.existsSync(mdPath)) return null;
+
+  const meta = readSkillMeta(targetDir);
+  let skillMd: string;
+  try {
+    skillMd = fs.readFileSync(mdPath, 'utf8');
+  } catch {
+    return null;
+  }
+
+  const files: string[] = [];
+  const walk = (d: string) => {
+    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
+      if (ent.name.startsWith('.') || IGNORED.has(ent.name)) continue;
+      const full = path.join(d, ent.name);
+      if (ent.isDirectory()) {
+        files.push(path.relative(targetDir, full) + '/');
+        walk(full);
+      } else {
+        files.push(path.relative(targetDir, full));
+      }
+    }
+  };
+  walk(targetDir);
+
+  const name = String(meta?.name ?? path.basename(subdir));
+  const config = loadConfig();
+  const installed = !!config.skills[name] || fs.existsSync(skillDir(name));
+
+  return {
+    name,
+    subdir,
+    url,
+    description: meta?.description ?? '',
+    meta,
+    files: files.sort(),
+    skillMd,
+    lint: lintSkill(targetDir),
+    installed,
+  };
 }
 
 

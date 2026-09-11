@@ -33,6 +33,89 @@ export interface AddOptions {
   force?: boolean;
   /** 组织安全治理策略（缺省自动查找） */
   policy?: SkillPotPolicy | null;
+  /** 指定 git 来源版本（Tag、分支名或 Commit Hash） */
+  ref?: string;
+}
+
+export interface ParsedGitSource {
+  url: string;
+  ref?: string;
+  subdir?: string;
+}
+
+/** 解析 git 来源规范，提取 url、ref（Tag/Branch/Commit）以及 subdir */
+export function parseGitSource(source: string, explicitRef?: string): ParsedGitSource {
+  let [base, sub] = source.split('#');
+  let ref = explicitRef?.trim() || undefined;
+
+  if (sub && sub.includes('@') && !ref) {
+    const parts = sub.split('@');
+    sub = parts[0];
+    ref = parts[1];
+  }
+
+  if (!ref) {
+    if (base.startsWith('git@')) {
+      const colonIdx = base.indexOf(':');
+      if (colonIdx > 0) {
+        const afterColon = base.slice(colonIdx + 1);
+        const atIdx = afterColon.indexOf('@');
+        if (atIdx > 0) {
+          ref = afterColon.slice(atIdx + 1);
+          base = base.slice(0, colonIdx + 1 + atIdx);
+        }
+      }
+    } else {
+      const atIdx = base.lastIndexOf('@');
+      if (atIdx > 0) {
+        const hasSlashAfterAt = base.slice(atIdx).includes('/');
+        if (!hasSlashAfterAt) {
+          ref = base.slice(atIdx + 1);
+          base = base.slice(0, atIdx);
+        }
+      }
+    }
+  }
+
+  return { url: base, ref, subdir: sub || undefined };
+}
+
+/** 浅克隆 git 仓库并在指定 ref 时精确对齐分支/Tag/Commit */
+export async function cloneGitRepo(
+  url: string,
+  ref: string | undefined,
+  targetDir: string,
+): Promise<void> {
+  if (ref) {
+    try {
+      await execFileP('git', ['clone', '--depth', '1', '-b', ref, url, targetDir], {
+        timeout: 300_000,
+        maxBuffer: 16 * 1024 * 1024,
+      });
+      return;
+    } catch {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+      await execFileP('git', ['clone', '--depth', '1', url, targetDir], {
+        timeout: 300_000,
+        maxBuffer: 16 * 1024 * 1024,
+      });
+      try {
+        await execFileP('git', ['checkout', ref], { cwd: targetDir, timeout: 60_000 });
+      } catch {
+        try {
+          await execFileP('git', ['fetch', '--unshallow'], { cwd: targetDir, timeout: 120_000 });
+          await execFileP('git', ['checkout', ref], { cwd: targetDir, timeout: 60_000 });
+        } catch (e2: any) {
+          throw new Error(`无法切换到指定的 git ref '${ref}'：${e2?.message || String(e2)}`);
+        }
+      }
+    }
+  } else {
+    await execFileP('git', ['clone', '--depth', '1', url, targetDir], {
+      timeout: 300_000,
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  }
 }
 
 export interface AddResult {
@@ -54,11 +137,18 @@ export async function addSkill(source: string, opts: AddOptions = {}): Promise<A
   if (!source || !source.trim()) throw new Error('缺少来源：本地目录或 git URL');
   initStore();
   const isGit = isGitSource(source);
-  const canonicalSource = isGit ? `git:${source}` : `local:${path.resolve(source)}`;
+  const parsedGit = isGit ? parseGitSource(source, opts.ref) : null;
+  const canonicalSource = parsedGit
+    ? `git:${parsedGit.url}${parsedGit.ref ? '@' + parsedGit.ref : ''}${parsedGit.subdir ? '#' + parsedGit.subdir : ''}`
+    : `local:${path.resolve(source)}`;
 
   // —— 组织安全治理策略前置检查 ——
   const policyObj = opts.policy !== undefined ? opts.policy : loadPolicy()?.policy;
-  const preName = opts.name || path.basename(source.split('#')[0].replace(/\.git$/, ''));
+  const preName =
+    opts.name ||
+    (parsedGit?.subdir
+      ? path.basename(parsedGit.subdir)
+      : path.basename((parsedGit?.url || source).replace(/\.git$/, '')));
   if (policyObj) {
     checkAddAllowed(preName, canonicalSource, undefined, policyObj, { force: opts.force });
   }
@@ -66,15 +156,11 @@ export async function addSkill(source: string, opts: AddOptions = {}): Promise<A
   let srcDir: string;
   let tmpCloneDir: string | undefined;
 
-  if (isGit) {
-    const [url, sub] = source.split('#');
+  if (parsedGit) {
     tmpCloneDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skillpot-clone-'));
     try {
-      await execFileP('git', ['clone', '--depth', '1', url, tmpCloneDir], {
-        timeout: 300_000,
-        maxBuffer: 16 * 1024 * 1024,
-      });
-      srcDir = sub ? path.join(tmpCloneDir, sub) : tmpCloneDir;
+      await cloneGitRepo(parsedGit.url, parsedGit.ref, tmpCloneDir);
+      srcDir = parsedGit.subdir ? path.join(tmpCloneDir, parsedGit.subdir) : tmpCloneDir;
     } catch (e) {
       if (tmpCloneDir) fs.rmSync(tmpCloneDir, { recursive: true, force: true });
       throw e;

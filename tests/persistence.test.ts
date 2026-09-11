@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { makeSandbox } from './util';
 import { withLockSync, writeFileAtomic } from '../src/util/fsx';
 import { skillpotHome } from '../src/paths';
-import { emptyConfig, loadConfig, loadState, saveConfig } from '../src/core/config';
+import { emptyConfig, emptyState, loadConfig, loadState, saveConfig, saveState } from '../src/core/config';
 
 function mutexPath(): string {
   return path.join(skillpotHome(), '.skillpot.mutex');
@@ -94,4 +94,30 @@ describe('配置持久化的健壮性', () => {
     expect(quarantined).toHaveLength(1);
     expect(fs.readFileSync(path.join(home, quarantined[0]), 'utf8')).toContain('not json');
   });
+
+  it('saveConfig 与 saveState 默认挂接互斥锁，在锁被他人独占时拒绝冲突写入', () => {
+    process.env.SKILLPOT_MUTEX_TIMEOUT_MS = '100';
+    try {
+      fs.mkdirSync(path.dirname(mutexPath()), { recursive: true });
+      fs.writeFileSync(mutexPath(), 'another-process-holding-lock');
+
+      // saveConfig 尝试写入时遇到锁被独占 -> 抛错保护，不静默并发覆写
+      expect(() => saveConfig(emptyConfig())).toThrow(/另一个 skillpot 进程正在写入/);
+
+      // saveState 尝试写入时遇到锁被独占 -> 抛错保护
+      expect(() => saveState(emptyState())).toThrow(/另一个 skillpot 进程正在写入/);
+
+      // 清理模拟的外部进程锁
+      fs.rmSync(mutexPath(), { force: true });
+
+      // 释放后可正常落盘
+      saveConfig(emptyConfig());
+      saveState(emptyState());
+      expect(fs.existsSync(path.join(skillpotHome(), 'config.yaml'))).toBe(true);
+      expect(fs.existsSync(path.join(skillpotHome(), 'state.json'))).toBe(true);
+    } finally {
+      delete process.env.SKILLPOT_MUTEX_TIMEOUT_MS;
+    }
+  });
 });
+

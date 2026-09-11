@@ -31,3 +31,8 @@ export function statePath(): string {
 export function marketCacheDir(): string {
   return path.join(skillpotHome(), 'cache', 'market');
 }
+
+/** 远程策略文件的本地缓存目录（~/.skillpot/cache/policy/<url-hash>.yaml） */
+export function policyCacheDir(): string {
+  return path.join(skillpotHome(), 'cache', 'policy');
+}

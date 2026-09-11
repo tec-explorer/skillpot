@@ -355,4 +355,5 @@ npm 查重：`skillpot` 可用；`skillhub`（v0.4.1，同类产品）与 `skill
 - 2026-09-10 生态与 CI 扩圈（v0.17.0 官方 GitHub Action、Homebrew 分发与自更新检查）：详见 [CHANGELOG.md](../../CHANGELOG.md#0170---2026-09-10) 与 [docs/ecosystem/](../ecosystem/)
 - 2026-09-11 文档优化与纠错（v0.17.1 策略 YAML 语法对齐、验证矩阵纠偏与系统架构全景图）：详见 [CHANGELOG.md](../../CHANGELOG.md#0171---2026-09-11)
 - 2026-09-11 工程微调（v0.18.0 Agent 检测本地文件缓存与 Windows 符号链接平滑降级）：详见 [CHANGELOG.md](../../CHANGELOG.md#0180---2026-09-11)
+- 2026-09-11 平台化与团队协同（v0.19.0 远程策略中心、离线技能内联打包、GUI 提示词抽屉、Lint 注解抑制与跨进程锁固）：详见 [CHANGELOG.md](../../CHANGELOG.md#0190---2026-09-11)
 

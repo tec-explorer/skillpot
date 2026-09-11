@@ -12,6 +12,7 @@ import {
   OFFICIAL_URL,
   removeSource,
   scanSource,
+  previewMarketSkill,
   searchDirectory,
   resolveDirectorySkill,
   matchDirectorySkill,
@@ -152,6 +153,60 @@ describe('市场 API(handleApiRequest)', () => {
     ))!;
     expect(inst.status).toBe(200);
     expect(loadConfig().skills['beta']).toBeTruthy();
+  });
+
+  it('previewMarketSkill 与 GET /api/market/preview 成功返回提示词全文、文件树与静态安全扫描', async () => {
+    const url = `file://${repo}`;
+
+    // 确保克隆缓存已就绪
+    await scanSource(url);
+
+    // 1. 直接单元函数测试
+    const preview = previewMarketSkill(url, 'skills/alpha');
+    expect(preview).not.toBeNull();
+    expect(preview!.name).toBe('alpha');
+    expect(preview!.subdir).toBe('skills/alpha');
+    expect(preview!.description).toBe('Alpha skill for market test.');
+    expect(preview!.skillMd).toContain('# alpha');
+    expect(preview!.files).toEqual(['SKILL.md']);
+    expect(Array.isArray(preview!.lint)).toBe(true);
+    expect(preview!.installed).toBe(false);
+
+    // 2. HTTP API 测试：有效请求返回 200
+    const apiRes = (await handleApiRequest(
+      'GET',
+      '/api/market/preview',
+      new URLSearchParams({ url, subdir: 'skills/alpha' }),
+      null,
+      TOKEN,
+      undefined,
+    ))!;
+    expect(apiRes.status).toBe(200);
+    const body = apiRes.body as { name: string; skillMd: string; files: string[] };
+    expect(body.name).toBe('alpha');
+    expect(body.skillMd).toContain('# alpha');
+
+    // 3. 缺少参数返回 400
+    const badParam = (await handleApiRequest(
+      'GET',
+      '/api/market/preview',
+      new URLSearchParams({ url }),
+      null,
+      TOKEN,
+      undefined,
+    ))!;
+    expect(badParam.status).toBe(400);
+
+    // 4. 不存在的子目录返回 404
+    const notFound = (await handleApiRequest(
+      'GET',
+      '/api/market/preview',
+      new URLSearchParams({ url, subdir: 'nonexistent/path' }),
+      null,
+      TOKEN,
+      undefined,
+    ))!;
+    expect(notFound.status).toBe(404);
   });
 });
 

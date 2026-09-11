@@ -23,6 +23,7 @@ import {
   getRegistryStatus,
   installFromMarket,
   listSources,
+  previewMarketSkill,
   removeSource,
   scanSource,
 } from './market';
@@ -30,8 +31,10 @@ import {
   applyPolicy,
   checkPolicy,
   initPolicyFile,
+  isUrl,
   loadPolicy,
   readPolicyRaw,
+  resolvePolicy,
   savePolicyRaw,
 } from './policy';
 import { exportManifest, inspectManifest, syncManifest } from './team-sync';
@@ -267,6 +270,22 @@ export async function handleApiRequest(
       const result = await scanSource(url, { refresh: query.get('refresh') === '1' });
       return { status: 200, body: result };
     }
+    if (method === 'GET' && pathname === '/api/market/preview') {
+      const url = query.get('url');
+      const subdir = query.get('subdir');
+      if (!url || !subdir) {
+        return { status: 400, body: { error: '需要 url 与 subdir 查询参数' } };
+      }
+      try {
+        const preview = previewMarketSkill(url, subdir);
+        if (!preview) {
+          return { status: 404, body: { error: '未找到该技能（可能尚未克隆或目录不存在）' } };
+        }
+        return { status: 200, body: preview };
+      } catch (e) {
+        return { status: 400, body: { error: e instanceof Error ? e.message : String(e) } };
+      }
+    }
     if (method === 'POST' && pathname === '/api/market/install') {
       const b = (body ?? {}) as {
         url?: unknown;
@@ -291,7 +310,8 @@ export async function handleApiRequest(
 
     if (method === 'GET' && pathname === '/api/policy/status') {
       const fileQuery = query.get('file') || undefined;
-      const loaded = loadPolicy(fileQuery);
+      const urlQuery = query.get('url') || undefined;
+      const loaded = await resolvePolicy({ path: fileQuery, url: urlQuery });
       if (!loaded) {
         return {
           status: 200,
@@ -305,7 +325,7 @@ export async function handleApiRequest(
           },
         };
       }
-      const raw = readPolicyRaw(loaded.file);
+      const raw = isUrl(loaded.file) ? '' : (readPolicyRaw(loaded.file)?.content ?? '');
       const checkResult = checkPolicy(loaded.policy, loaded.file);
       const registryStatus = getRegistryStatus(loaded.policy);
       return {
@@ -313,10 +333,11 @@ export async function handleApiRequest(
         body: {
           hasPolicy: true,
           file: loaded.file,
-          raw: raw?.content ?? '',
+          raw,
           policy: loaded.policy,
           checkResult,
           registryStatus,
+          fromCache: loaded.fromCache,
         },
       };
     }
@@ -342,9 +363,10 @@ export async function handleApiRequest(
       };
     }
     if (method === 'POST' && pathname === '/api/policy/check') {
-      const b = (body ?? {}) as { file?: unknown };
+      const b = (body ?? {}) as { file?: unknown; url?: unknown };
       const explicit = typeof b.file === 'string' && b.file.trim() ? b.file.trim() : undefined;
-      const loaded = loadPolicy(explicit);
+      const url = typeof b.url === 'string' && b.url.trim() ? b.url.trim() : undefined;
+      const loaded = await resolvePolicy({ path: explicit, url });
       if (!loaded) {
         return { status: 400, body: { error: '未找到策略文件' } };
       }
@@ -352,9 +374,10 @@ export async function handleApiRequest(
       return { status: 200, body: { checkResult } };
     }
     if (method === 'POST' && pathname === '/api/policy/apply') {
-      const b = (body ?? {}) as { file?: unknown; dryRun?: unknown; force?: unknown };
+      const b = (body ?? {}) as { file?: unknown; url?: unknown; dryRun?: unknown; force?: unknown };
       const explicit = typeof b.file === 'string' && b.file.trim() ? b.file.trim() : undefined;
-      const loaded = loadPolicy(explicit);
+      const url = typeof b.url === 'string' && b.url.trim() ? b.url.trim() : undefined;
+      const loaded = await resolvePolicy({ path: explicit, url });
       if (!loaded) {
         return { status: 400, body: { error: '未找到策略文件' } };
       }
