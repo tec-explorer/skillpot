@@ -32,7 +32,56 @@
 - **doctor 状态体检**：断链 / 漂移 / 同名遮蔽 / 孤儿链接全面体检，`--fix` 自动修复
 - **高并发原子写入与互斥锁**：临时文件写入 + rename 原子替换，跨进程文件互斥锁保证并发 `enable/disable` 状态一致性
 
-## 工作原理
+## 工作原理与全景架构
+
+```mermaid
+flowchart TD
+    subgraph Upstream["1. 上游来源 (Sources & Registries)"]
+        GitRepo["Git 仓库 (GitHub / GitLab)"]
+        LocalDir["本地目录 (Local Directory)"]
+        Market["内置技能源 (Anthropic / Vercel / 社区源)"]
+        PrivateReg["私有 Registry (JFrog / Vercel API)"]
+    end
+
+    subgraph SecurityGate["2. 安装前安全扫描与策略治理 (Security & Policy Gate)"]
+        PreLint["安装前 Lint 深度安全扫描<br/>• 提示词注入 / 越狱覆写阻断<br/>• HTML 隐藏注释载荷 / 零宽字符<br/>• Base64 动态执行 / 远程管道脚本"]
+        PolicyEngine["企业策略引擎 (skillpot.policy.yaml)<br/>• allowed_sources 来源白名单<br/>• deny 高危黑名单拦截<br/>• enforce 全员合规基线强推<br/>• targets 渠道访问约束"]
+    end
+
+    subgraph Store["3. 中央仓库与状态存储 (~/.skillpot/)"]
+        CentralStore["中央仓库 (Unique Truth)<br/>~/.skillpot/skills/<name>/SKILL.md<br/>(解引用自包含 / SHA256 Checksum)"]
+        Config["配置与开关矩阵<br/>config.yaml"]
+        StateLedger["受管链接台账<br/>state.json"]
+        Lockfile["版本锁快照<br/>skillpot.lock.json"]
+    end
+
+    subgraph Targets["4. 多 Agent 适配暴露 (Landing Strategies)"]
+        StratA["A 档：原生用户级 Skills 目录 (Symlink 暴露)<br/>• Claude Code (~/.claude/skills) [实测]<br/>• Gemini CLI (~/.gemini/skills) [实测]<br/>• ZCode / Codex / OpenCode / Cursor / Amp [文档确认]"]
+        StratB["通用广播渠道 (Shared Channel)<br/>• ~/.agents/skills (跨工具共享，显式开放)"]
+        StratC["C 档：MCP Bridge (Stdio JSON-RPC)<br/>• skillpot mcp (SKILLPOT_AGENT 身份约束)"]
+    end
+
+    subgraph AuditGate["5. 目录审计与 CI 门禁 (Audit & CI Gate)"]
+        Audit["全量物理目录审计 (skillpot audit)<br/>• 检出未受管外部条目<br/>• 审查同名遮蔽与安全隐患"]
+        CIGate["CI/CD 自动化门禁<br/>• 官方 GitHub Action (tec-explorer/skillpot@main)<br/>• --ci --fail-on error 自动熔断"]
+    end
+
+    subgraph UI["6. 多端管理交互层 (Interfaces)"]
+        CLI["命令行 CLI (skillpot / spot)"]
+        TUI["终端交互矩阵 (spot tui)"]
+        WebGUI["浏览器控制台 (skillpot gui)"]
+    end
+
+    Upstream --> SecurityGate
+    SecurityGate -- "阻断高危/违规" --> Reject["拒绝落盘并告警"]
+    SecurityGate -- "通过校验" --> CentralStore
+    CentralStore <--> Config
+    Config --> StateLedger
+    StateLedger --> Targets
+    Targets --> AuditGate
+    Store <--> UI
+    Targets <--> UI
+```
 
 ```
 ~/.skillpot/
@@ -172,11 +221,12 @@ skillpot sync           # 按 ./.skillpot.yaml 对齐；--dry-run 先预览
 通过维护代码化策略文件 `skillpot.policy.yaml`，组织可实现全员合规基线管控与私有 Registry 对接：
 
 ```yaml
-version: "1.0"
+version: 1
+name: enterprise-security-baseline
 mode: strict # strict（默认阻断）| audit（告警模式）
 
 allowed_sources:
-  - "https://github.com/my-org/*"
+  - "git:https://github.com/my-org/*"
   - "local:*"
 
 targets:
@@ -185,15 +235,15 @@ targets:
 
 enforce:
   - name: "security-guard"
-    source: "https://github.com/my-org/security-guard.git"
-    targets: ["all"]
+    source: "git:https://github.com/my-org/security-guard.git"
+    for: all # 强制开启的目标（all 或逗号分隔 Agent 列表）
 
 deny:
-  - pattern: "*crypto*"
+  - name: "*crypto*"
     reason: "组织黑名单"
 
 registry:
-  endpoint: "https://skills.corp.example.com/api"
+  url: "https://skills.corp.example.com/api"
   token_env: "SKILLPOT_REGISTRY_TOKEN"
   force_private: true
 ```

@@ -14,7 +14,8 @@ docs/
 ├── design/                    # 技术与架构设计（按需创建，如适配器协议、配置格式、MCP bridge）
 │   ├── agent-adapters.md      # Agent 适配器与三档落地策略（含新增适配器指南）
 │   ├── enterprise-policy.md   # 企业策略引擎与私有 Registry 设计
-│   └── mcp-bridge.md          # MCP bridge 设计（C 档落地策略）
+│   ├── mcp-bridge.md          # MCP bridge 设计（C 档落地策略）
+│   └── verification-matrix.md # 逐家验证证据矩阵（规范依据与实机探针测试）
 ├── ecosystem/                 # 生态与分发指引
 │   ├── github-action.md       # 官方 GitHub Action 使用指南
 │   ├── homebrew.md            # Homebrew Tap 与 Formula 维护指南

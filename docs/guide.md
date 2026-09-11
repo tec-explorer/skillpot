@@ -2,9 +2,9 @@
 
 本文带你走一遍 SkillPot 的全部功能。所有截图来自演示环境(虚构的 skill 名)。
 
-- 安装:`npm install -g @tec-explorer/skillpot`(或 `npx @tec-explorer/skillpot`,短别名 `spot`)
-- 要求:Node ≥ 18
-- 命令总览:`skillpot --help`
+- 安装: `npm install -g @tec-explorer/skillpot`，或 Homebrew: `brew tap tec-explorer/tap && brew install skillpot` (短别名 `spot`，亦可 `npx @tec-explorer/skillpot` 免安装运行)
+- 要求: Node ≥ 18
+- 命令总览: `skillpot --help`
 
 ---
 
@@ -201,33 +201,69 @@ skillpot sync --dry-run     # 先预览将对齐的动作
 4. **在线 YAML 查看与编辑**：
    - 内置轻量 YAML 编辑器，支持即时修改策略源码、格式校验并自动重新验证。
 
-## 12. 命令速查
+## 12. 生态扩圈与 CI/CD 自动化门禁
+
+### 12.1 官方 GitHub Action（CI 安全与策略门禁）
+
+在持续集成流水线中，通过官方 GitHub Action 为代码仓库设立**供应链安全与合规门禁**：
+
+```yaml
+- name: Run SkillPot Security Gate
+  uses: tec-explorer/skillpot@main
+  with:
+    args: 'audit --ci --fail-on error'
+```
+
+- **安全防御**：`audit --ci --fail-on error` 扫描物理目录与修改的 Skill 正文，发现高危提示词注入、隐藏载荷或恶意脚本直接返回非零状态码阻断 PR 合并。
+- **策略合规**：配合企业策略文件执行 `policy check --ci`，严禁私自引入非白名单源或漏装强制基线。
+- **私有凭据**：支持传入 `SKILLPOT_REGISTRY_TOKEN` 环境变量打通内部私有 Registry。
+- 详见 [docs/ecosystem/github-action.md](ecosystem/github-action.md)。
+
+### 12.2 Homebrew 原生分发
+
+针对 macOS 与 Linux 开发者，提供官方 Homebrew Tap 支持：
+
+```bash
+brew tap tec-explorer/tap
+brew install skillpot
+```
+
+安装后开箱立得 `skillpot` 与短别名 `spot` 命令，后续通过 `brew upgrade skillpot` 保持最新。详见 [docs/ecosystem/homebrew.md](ecosystem/homebrew.md)。
+
+### 12.3 终端自更新检测
+
+CLI 内置非阻塞版本更新提示器（`src/util/update-notifier.ts`）：
+- 命令正常执行完成后，异步检测 npm 官方源是否存在新版本并友善打印更新提示。
+- 内置 24 小时本地缓存防抖，避免高频网络请求干扰。
+- 在 CI 环境、管道非 TTY 环境或 `--json` 格式化输出时自动静默，零侵入性。
+
+## 13. 命令速查
 
 | 命令 | 说明 |
 |---|---|
 | `skillpot init` | 初始化中央仓库 + Agent 检测 |
 | `skillpot agents [--json]` | 检测本机 Agent、skills 目录与各目标验证等级 |
-| `skillpot add <source>` | 安装(本地目录 / git URL#subdir) |
+| `skillpot add <source> [-f]` | 安装(本地目录 / git URL#subdir)，安装前安全扫描，`-f` 强制放行 |
 | `skillpot list [--agent id\|broadcast]` | 列出仓库 skill 与开放状态 |
 | `skillpot enable/disable <skill> --for <targets>` | 开关(targets 支持逗号分隔、`broadcast` 或 `all`;`all` 不含通用广播) |
 | `skillpot broadcast <skill> [--off]` | 通用广播列的命令糖(= `enable --for broadcast`) |
-| `skillpot remove <skill>` | 卸载 |
-| `skillpot adopt [--move] [--dry-run]` | 收编 |
-| `skillpot lint [skill] [--strict]` | 安全/质量扫描 |
-| `skillpot update [skill] [--check]` | git 来源更新 |
-| `skillpot doctor [--fix]` | 体检与修复 |
-| `skillpot audit [--json]` | 审计各目标实际生效的 skill、来源与被绕过情况 |
-| `skillpot policy check/apply/init` | 企业策略治理：审查合规性、一键自动修复与模板初始化 |
-| `skillpot registry` | 查看私有/公共 Registry 终端与认证状态 |
-| `skillpot gui [--port] [--host] [--no-open]` | Web 控制台 |
-| `skillpot tui [--once]` | 终端开关矩阵 |
-| `skillpot mcp` | MCP server(stdio) |
-| `skillpot source list/add/remove` | 市场源管理 |
-| `skillpot market [url]` | 浏览源内 skill |
+| `skillpot remove <skill>` | 卸载(撤下所有链接 + 删除中央仓库内容) |
+| `skillpot adopt [--move] [--dry-run]` | 收编既有 skill，`--move` 替换原目录为受管 symlink |
+| `skillpot lint [skill] [--strict]` | 深度安全/质量扫描(提示词注入、隐藏注释、Unicode 混淆) |
+| `skillpot update [skill] [--check]` | git 来源原位更新与变更 diff 对比 |
+| `skillpot doctor [--fix]` | 体检(断链/漂移/同名遮蔽/孤儿链接)与自动修复 |
+| `skillpot audit [--json] [--ci] [--fail-on <lvl>]` | 全量审计各目标物理 skill、来源、未受管条目与 CI 阻断门禁 |
+| `skillpot policy check/apply/init [--ci]` | 企业策略治理：审查合规基线、一键自动修复与模板初始化 |
+| `skillpot registry` | 查看私有/公共 Registry 终端连接、Token 注入与私有锁定状态 |
+| `skillpot gui [--port] [--host] [--no-open]` | Web 浏览器控制台(矩阵/体检/收编/安装/市场/维护/策略) |
+| `skillpot tui [--once]` | 终端交互式开关矩阵；无 TTY 自动降级输出 |
+| `skillpot mcp` | 以 MCP server (stdio) 运行，受 `SKILLPOT_AGENT` 身份约束 |
+| `skillpot source list/add/remove` | 市场源管理(内置官方源 + 自定义 git 仓库源) |
+| `skillpot market [url] [--refresh]` | 命令行浏览源内 skill 并一键安装 |
 | `skillpot search <关键词>` / `install-search <id>` | 搜索并安装 skills.sh 目录中的 skill |
-| `skillpot sync [--export] [--dry-run]` | 团队对齐：按项目清单安装/对齐 |
+| `skillpot sync [--file] [--export] [--dry-run]` | 团队对齐：按项目清单 `.skillpot.yaml` 安装/导出/对齐 |
 
-## 13. 支持的目标
+## 14. 支持的目标
 
 **八家 Agent**——Claude Code、ZCode、Codex CLI、OpenCode、Gemini CLI、DeepSeek CLI(dsh)、Cursor、Amp,加上**通用广播渠道**(`~/.agents/skills`)。适配器 = "用户级 skills 发现路径" + 二进制/目录指纹检测。
 
@@ -235,11 +271,11 @@ skillpot sync --dry-run     # 先预览将对齐的动作
 
 | 等级 | 含义 | 当前 |
 |---|---|---|
-| 实测 | 真机确认过该 Agent 能发现 SkillPot 建立的链接 | Claude Code |
-| 文档确认 | 路径有官方依据,链接发现未实测 | ZCode、Codex CLI、通用广播 |
-| 未验证 | 路径本身仍待确认 | OpenCode、Gemini CLI、dsh、Cursor、Amp |
+| 实测 | 真机确认过该 Agent 能发现 SkillPot 建立的链接 | Claude Code、Gemini CLI / Antigravity |
+| 文档确认 | 路径有官方依据,链接发现未实测 | ZCode、Codex CLI、OpenCode、Cursor、Amp、通用广播 |
+| 未验证 | 路径本身仍待确认 | DeepSeek CLI (dsh) |
 
-`skillpot agents` 会逐个打印等级与依据。开放后 skill 静默不生效是最伤用户的失败模式,所以这里宁可低报——实机验证过请提 PR 把它升为「实测」。
+`skillpot agents` 会逐个打印等级与依据。开放后 skill 静默不生效是最伤用户的失败模式,所以这里宁可低报——实机验证证据全景与自动化测试探针（`scripts/verify-probe.sh`）见 [docs/design/verification-matrix.md](design/verification-matrix.md)。实机验证过请提 PR 把它升为「实测」。
 
 新增 Agent:只要它扫描某个用户级目录下的 `SKILL.md` 目录,就能以约十行适配器接入(欢迎 PR),步骤见 [docs/design/agent-adapters.md](design/agent-adapters.md)。
 

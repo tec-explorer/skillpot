@@ -57,7 +57,56 @@ skillpot registry                 # show private registry and token status
 > Agents scan their skill directories at session start — restart a session after enable/disable.
 > `--for all` expands to every concrete agent and **excludes the broadcast column** — broadcasting is opt-in only.
 
-## How it works
+## How it works & Architecture
+
+```mermaid
+flowchart TD
+    subgraph Upstream["1. Upstream Sources & Registries"]
+        GitRepo["Git Repositories (GitHub / GitLab)"]
+        LocalDir["Local Directory"]
+        Market["Built-in Market (Anthropic / Vercel / Community)"]
+        PrivateReg["Private Registry (JFrog / Vercel API)"]
+    end
+
+    subgraph SecurityGate["2. Pre-install Security & Policy Gate"]
+        PreLint["Pre-install Lint Deep Safety Scan<br/>• Prompt injection / override block<br/>• Hidden HTML comment payloads<br/>• Unicode / Base64 obfuscation<br/>• Dangerous remote shell execution"]
+        PolicyEngine["Enterprise Policy Engine (skillpot.policy.yaml)<br/>• allowed_sources whitelist<br/>• deny blacklist rules<br/>• enforce mandatory security baseline<br/>• targets channel restrictions"]
+    end
+
+    subgraph Store["3. Central Store & State (~/.skillpot/)"]
+        CentralStore["Central Store (Single Source of Truth)<br/>~/.skillpot/skills/<name>/SKILL.md<br/>(Dereferenced self-contained / SHA256)"]
+        Config["Config & Switch Matrix<br/>config.yaml"]
+        StateLedger["Symlink Ledger<br/>state.json"]
+        Lockfile["Snapshot & Lockfile<br/>skillpot.lock.json"]
+    end
+
+    subgraph Targets["4. Multi-Agent Landing Strategies"]
+        StratA["Strategy A: Native User Skills Dir (Symlink)<br/>• Claude Code (~/.claude/skills) [Live]<br/>• Gemini CLI (~/.gemini/skills) [Live]<br/>• ZCode / Codex / OpenCode / Cursor / Amp [Docs]"]
+        StratB["Strategy B: Universal Broadcast Channel<br/>• ~/.agents/skills (Shared directory, opt-in only)"]
+        StratC["Strategy C: MCP Bridge (Stdio JSON-RPC)<br/>• skillpot mcp (SKILLPOT_AGENT identity enforcement)"]
+    end
+
+    subgraph AuditGate["5. Audit & CI Gate"]
+        Audit["Full Physical Directory Audit (skillpot audit)<br/>• Detect unmanaged shadow skills<br/>• Inspect shadowing & safety risks"]
+        CIGate["CI/CD Automated Security Gate<br/>• Official GitHub Action (tec-explorer/skillpot@main)<br/>• --ci --fail-on error pipeline blocker"]
+    end
+
+    subgraph UI["6. Management Interfaces"]
+        CLI["Command Line (skillpot / spot)"]
+        TUI["Interactive TUI (spot tui)"]
+        WebGUI["Web Console (skillpot gui)"]
+    end
+
+    Upstream --> SecurityGate
+    SecurityGate -- "Blocked" --> Reject["Reject & Warn"]
+    SecurityGate -- "Passed" --> CentralStore
+    CentralStore <--> Config
+    Config --> StateLedger
+    StateLedger --> Targets
+    Targets --> AuditGate
+    Store <--> UI
+    Targets <--> UI
+```
 
 ```
 ~/.skillpot/

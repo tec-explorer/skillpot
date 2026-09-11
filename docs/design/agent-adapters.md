@@ -82,16 +82,17 @@ interface AgentAdapter {
 
 ## 当前适配器（8 家 + 1 渠道）
 
-以 `src/agents/registry.ts` 为唯一事实源（下表随其更新）：
+以 `src/agents/registry.ts` 为唯一事实源（逐家证据详见 [verification-matrix.md](./verification-matrix.md)）：
 
 | 目标 | kind | 目录 | 等级 |
 |---|---|---|---|
 | Claude Code | agent | `~/.claude/skills` | live 实测 |
+| Gemini CLI | agent | `~/.gemini/skills` | live 实测 |
 | ZCode | agent | `~/.zcode/skills` | docs |
 | Codex CLI | agent | `~/.codex/skills` | docs |
-| OpenCode | agent | `~/.config/opencode/skill` | unverified |
-| Gemini CLI | agent | `~/.gemini/skills` | unverified |
-| DeepSeek CLI | agent | `~/.dsh/skills` | unverified |
-| Cursor | agent | `~/.cursor/skills` | unverified |
-| Amp | agent | `~/.config/amp/skills` | unverified |
+| OpenCode | agent | `~/.config/opencode/skill` | docs |
+| Cursor | agent | `~/.cursor/skills` | docs |
+| Amp | agent | `~/.config/amp/skills` | docs |
 | 通用广播 | channel | `~/.agents/skills` | docs |
+| DeepSeek CLI | agent | `~/.dsh/skills` | unverified |
+

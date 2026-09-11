@@ -3,6 +3,28 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.17.1] - 2026-09-11
+
+文档体系全面优化与纠错：策略 YAML 规范对齐、逐家验证矩阵表格纠偏、顶层架构全景图与规范手册。
+
+### Fixed
+- **策略 YAML 规范与示例对齐**：
+  - 修正 `README.md`、`README.en.md` 与 `docs/design/enterprise-policy.md` 中的策略 YAML 示例（`version: 1`、`registry.url`、`enforce[].for`、`deny[].name`、`targets` 结构），避免用户复制配置后无法解析。
+- **验证等级表格事实订正**：
+  - 订正 `docs/guide.md` 与 `docs/design/agent-adapters.md` 表格：Gemini CLI 确认实测（`live`），OpenCode/Cursor/Amp 确认为文档确认（`docs`），消除早期与实际验证脱节的陈旧表述。
+- **生态与 Homebrew 示例版本同步**：
+  - 更新 `docs/ecosystem/github-action.md` 与 `docs/ecosystem/homebrew.md` 版本号与示例引用。
+
+### Added
+- **顶层系统架构与数据流全景图**：
+  - 在中英文 README 增加系统顶层 Mermaid 架构图（上游来源 → 安全防线 → 策略引擎 → 中央仓库真身 → 多 Agent 落地暴露 → 全量审计与 CI 门禁 → 多端交互界面）。
+- **企业策略规范速查手册与违规代码字典**：
+  - 在 `docs/design/enterprise-policy.md` 增设完整字段级 Schema 规范表、违规代码字典（`enforce_missing`, `denied_installed` 等）及 CLI 退出码规范。
+- **用户指南生态与 CI 扩圈章节**：
+  - `docs/guide.md` 新增第 12 节详解 GitHub Action、Homebrew 安装及终端自更新检测器，更新安装指引与命令速查表。
+- **文档中心索引补全**：
+  - `docs/README.md` 补全 `docs/design/verification-matrix.md` 目录索引；`docs/product/product-plan.md` 补齐近期里程碑交付链接。
+
 ## [0.17.0] - 2026-09-10
 
 生态与 CI 扩圈：官方 GitHub Action、Homebrew 分发、CLI 自更新检查与海外社区资产。

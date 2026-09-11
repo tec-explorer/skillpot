@@ -53,8 +53,8 @@ bash scripts/generate-brew-formula.sh
 class Skillpot < Formula
   desc "Cross-agent skill supply chain security & governance layer for coding agents"
   homepage "https://github.com/tec-explorer/skillpot"
-  url "https://registry.npmjs.org/@tec-explorer/skillpot/-/@tec-explorer/skillpot-0.16.0.tgz"
-  sha256 "8442ab0b34cc4b04298bad584e559012c11b4682ae97142ea40989cde76dfa58"
+  url "https://registry.npmjs.org/@tec-explorer/skillpot/-/@tec-explorer/skillpot-0.17.1.tgz"
+  sha256 "189e09f95f32f2f7aa5b8c80d80a6e7310e9edb9d35353f7f31ad64715cbff1d"
   license "MIT"
 
   depends_on "node"

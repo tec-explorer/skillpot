@@ -347,5 +347,10 @@ npm 查重：`skillpot` 可用；`skillhub`（v0.4.1，同类产品）与 `skill
 - [2026-09-04 GUI G1 执行报告](../reports/2026-09-04-gui-g1-execution.md)
 - [2026-09-04 GUI G2/G3/G4 执行报告](../reports/2026-09-04-gui-g2-g3-g4-execution.md)
 - [2026-09-04 跟进批次(市场/适配器/矩阵优化)执行报告](../reports/2026-09-04-followups-market-execution.md)
-- [2026-09-04 主线B 团队对齐执行报告](../reports/2026-09-04-team-sync-execution.md)（最新；主线A 安全纵深随 0.8.0 发布,详见 CHANGELOG）
+- [2026-09-04 主线B 团队对齐执行报告](../reports/2026-09-04-team-sync-execution.md)
+- 2026-09-10 Phase 2（v0.13.0 安装前安全阻断与全量目录审计）：详见 [CHANGELOG.md](../../CHANGELOG.md#0130---2026-09-10)
+- 2026-09-10 Phase 3（v0.14.0 逐家验证证据表与定位换轨）：详见 [CHANGELOG.md](../../CHANGELOG.md#0140---2026-09-10) 与 [verification-matrix.md](../design/verification-matrix.md)
+- 2026-09-10 Phase 4（v0.15.0 企业级策略治理与私有 Registry）：详见 [CHANGELOG.md](../../CHANGELOG.md#0150---2026-09-10) 与 [enterprise-policy.md](../design/enterprise-policy.md)
+- 2026-09-10 Web GUI 策略面板（v0.16.0 策略看板、在线 YAML 编辑器与一键修复）：详见 [CHANGELOG.md](../../CHANGELOG.md#0160---2026-09-10)
+- 2026-09-10 生态与 CI 扩圈（v0.17.0 官方 GitHub Action、Homebrew 分发与自更新检查）：详见 [CHANGELOG.md](../../CHANGELOG.md#0170---2026-09-10) 与 [docs/ecosystem/](../ecosystem/)
 

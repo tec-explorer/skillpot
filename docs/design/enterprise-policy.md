@@ -20,61 +20,63 @@ SkillPot 在 **Phase 4** 引入了企业级策略治理引擎（Enterprise Polic
 企业可通过在根目录、用户配置目录或指定路径维护 `skillpot.policy.yaml` 文件进行集中治理。
 
 ```yaml
-version: "1.0"
+version: 1
+name: enterprise-security-baseline
 mode: strict # strict（默认阻断）| audit（仅告警审查）
 
-# 来源控制白名单
+# 来源控制白名单（支持通配符或前缀）
 allowed_sources:
-  - "https://github.com/my-org/*"
-  - "https://skills.internal.mycompany.com/*"
+  - "git:https://github.com/my-org/*"
+  - "git:https://skills.internal.mycompany.com/*"
   - "local:*"
 
 # 目标 Agent / 广播渠道治理
 targets:
   broadcast:
     allow: false # 禁用全局广播目录 ~/.agents/skills，防止所有 Agent 无界暴露
-  allowed_agents:
-    - claude-code
-    - codex
-    - gemini-cli
 
 # 强制开启技能（合规基线）
 enforce:
   - name: "security-guard"
-    source: "https://github.com/my-org/security-guard.git"
-    targets: ["all"] # 或具体指定 ["claude-code", "gemini-cli"]
+    source: "git:https://github.com/my-org/security-guard.git"
+    for: all # 开放目标：all 或逗号分隔 Agent 列表（如 claude-code,gemini-cli）
     checksum: "sha256:abcd1234..." # 可选：强制锁定完整性哈希
 
-# 禁止安装的技能黑名单
+# 禁止安装的技能黑名单（命中任意维度即阻断）
 deny:
-  - pattern: "*crypto*"
+  - name: "*crypto*"
     reason: "组织禁止安装加密货币或未经审核的金融类技能"
-  - pattern: "bad-actor-*"
+  - name: "bad-actor-*"
     reason: "安全通报高危样本黑名单"
+  - source: "*untrusted-domain.com*"
+    reason: "非受信外部来源"
   - checksum: "sha256:99999999..."
     reason: "已知被投毒特定版本哈希拦截"
 
 # 私有 Registry 配置
 registry:
-  endpoint: "https://skills.corp.example.com/api"
+  url: "https://skills.corp.example.com/api"
   token_env: "SKILLPOT_REGISTRY_TOKEN" # 推荐通过环境变量注入 Bearer Token
   force_private: true # 锁定模式：禁止回退到公共 Market 或第三方源
 ```
 
 ### 2.2 策略规则与匹配机制
 
-1. **命名通配符匹配**：
-   - 策略支持简单的 glob 匹配（如 `*test*`、`crypto-*`、`*malicious`）。
-   - 大小写不敏感比对，确保防御全覆盖。
-2. **哈希匹配 (`checksum`)**：
-   - 支持对特定投毒版本哈希精准封锁，即便改名也无法规避拦截。
+1. **命名匹配 (`name`)**：
+   - 策略支持通配符匹配（如 `*test*`、`crypto-*`、`*malicious`、`test?`）。
+   - 大小写不敏感比对，确保全覆盖。
+2. **来源匹配 (`source`) 与来源白名单 (`allowed_sources`)**：
+   - 支持 git URL 前缀通配符（如 `git:https://github.com/my-company/*`）与 `local:*`。
+   - `deny` 中的 `source` 可精准封禁恶意域名或仓库。
+   - 未在 `allowed_sources` 白名单中的源（如非企业允许的第三方个人仓库）在安装时即刻被阻断。
+3. **哈希匹配 (`checksum`)**：
+   - 支持对特定投毒版本哈希精准封锁，即便技能改名也无法规避拦截。
    - `enforce` 支持配置期望 checksum，一旦本地安装技能内容偏离（哈希不一致），将被检出为违规。
-3. **来源白名单 (`allowed_sources`)**：
-   - 支持 git URL 前缀通配符（如 `https://github.com/my-company/*`）与 `local:*`。
-   - 未在白名单中的源（如非企业允许的第三方个人仓库）在添加时即刻被阻断。
-4. **运行模式 (`mode`)**：
-   - `strict`（严格模式）：违反 deny、allowed_sources 或 channel 策略时，直接阻断 `skillpot add` 与 `skillpot enable`。
-   - `audit`（审计模式）：不强制中断日常操作（除非传入了黑名单或未显式覆盖），违规项记录在合规报告中，用于看板监测。
+4. **渠道约束 (`targets`)**：
+   - 针对各目标设定访问策略，如 `targets.broadcast.allow: false` 严格禁止向共享目录暴露。
+5. **运行模式 (`mode`)**：
+   - `strict`（严格模式）：违反 deny、allowed_sources 或 target 策略时，直接阻断 `skillpot add` 与 `skillpot enable`，违规严重等级判定为 `error`。
+   - `audit`（审计模式）：不强制中断日常操作（除非命中不可豁免的恶意黑名单），违规项记录在合规报告中（部分告警为 `warn`），用于看板监测与 CI 审查。
 
 ---
 
@@ -158,3 +160,66 @@ skillpot audit --ci --json > audit-report.json
 ```
 
 若存在任何 `error` 级别的高危提示词注入漏洞、供应链投毒或策略合规违规，命令均会返回非零状态码，自动熔断流水线。
+
+---
+
+## 6. 策略规范速查手册 (Policy Schema Reference)
+
+### 6.1 顶层配置字段
+
+| 字段 | 类型 | 必填 | 默认值 | 描述 |
+|---|---|---|---|---|
+| `version` | `number` | 是 | - | 规范版本号，必须为整数 `1` |
+| `name` | `string` | 否 | - | 策略名称（如 `enterprise-security-baseline`） |
+| `mode` | `'strict' \| 'audit'` | 否 | `'strict'` | 运行模式：`strict` 遇到违规直接阻断；`audit` 仅记录审计告警 |
+| `registry` | `object` | 否 | - | 私有 / 企业 Registry 协议与认证配置 |
+| `enforce` | `EnforcedSkillRule[]` | 否 | `[]` | 强制开启技能清单（全员安全合规基线） |
+| `deny` | `DeniedSkillRule[]` | 否 | `[]` | 组织禁用黑名单（高危或违规技能） |
+| `allowed_sources` | `string[]` | 否 | `[]` | 来源白名单；支持通配符（如 `git:https://github.com/my-corp/*`、`local:*`）。未配置时不限制来源 |
+| `targets` | `Record<string, TargetPolicyRule>` | 否 | `{}` | 针对特定目标的暴露约束（如 `{ broadcast: { allow: false } }`） |
+
+### 6.2 子配置结构详解
+
+#### `registry`（企业私有 Registry）
+- `url` (`string`): Registry API 终端基地址（如 `https://skills.corp.internal/api`）。
+- `token_env` (`string`): 提取认证 Bearer Token 的环境变量名（推荐使用）。
+- `token` (`string`): 直接明文 Token（不推荐，仅用于测试）。
+- `force_private` (`boolean`): 是否开启私有锁定。若为 `true`，拦截一切公共源回退与外部市场搜索。
+
+#### `enforce[]`（合规基线规则）
+- `name` (`string`, 必填): 技能名称。
+- `source` (`string`, 必填): 规范安装来源（如 `git:https://github.com/my-corp/sec-guard.git`）。
+- `checksum` (`string`, 可选): 强制锁定的 SHA256 哈希（防篡改与版本偏离）。
+- `for` (`string`, 可选): 强制开放的目标，缺省为 `all`；支持逗号分隔列表（如 `claude-code,gemini-cli`）。
+
+#### `deny[]`（禁用黑名单规则）
+- `name` (`string`, 可选): 技能名称匹配模式（支持 `*` 与 `?` 通配符，不区分大小写，如 `*jailbreak*`）。
+- `source` (`string`, 可选): 来源匹配模式（如 `*untrusted-domain.com*`）。
+- `checksum` (`string`, 可选): 精确阻断的恶意或投毒版本 SHA256。
+- `reason` (`string`, 可选): 禁用原因说明（用于合规报告与控制台提示）。
+
+#### `targets.<targetId>`（渠道约束规则）
+- `allow` (`boolean`, 可选): 是否允许向该目标开放。设置为 `false` 时直接阻断该目标的任何 symlink 创建。
+
+---
+
+### 6.3 违规类型代码与严重等级字典 (Violation Dictionary)
+
+当执行 `skillpot policy check` 或调用策略 API 时，审查引擎会产出结构化的 `violations` 列表：
+
+| 违规类型 (`type`) | 默认严重度 | 产生原因 | 修复动作 (`skillpot policy apply`) |
+|---|---|---|---|
+| `enforce_missing` | `error` (strict) / `warn` (audit) | 策略中声明必须安装的技能本地未找到，或 checksum 哈希不符 | 自动从声明的 `source` 克隆安装并核对哈希 |
+| `enforce_not_exposed` | `error` (strict) / `warn` (audit) | 强制技能未对指定的 Agent 开放（缺少受管链接） | 自动在目标目录创建受管 symlink 并更新台账 |
+| `denied_installed` | `error`（不可豁免） | 本机已安装的技能命中了 `deny` 黑名单（名称/来源/哈希） | 自动卸载该技能并清空中央仓库对应目录 |
+| `denied_exposed` | `error`（不可豁免） | 命中黑名单的危险技能仍处于对某 Agent 开放生效状态 | 立即撤下所有 Agent 的暴露软链接 |
+| `disallowed_source` | `error` (strict) / `warn` (audit) | 已装技能来源未包含在 `allowed_sources` 白名单内 | 需开发者手工更换源或更新策略白名单 |
+| `target_disallowed` | `error` (strict) / `warn` (audit) | 向 `targets.<id>.allow: false` 的禁用渠道创建了暴露链接 | 自动撤销违规渠道的链接 |
+
+### 6.4 退出状态码规范 (Exit Codes)
+
+| 状态码 | 含义 | 触发场景 |
+|---|---|---|
+| `0` | **合规通过** | 无违规项，或在 `audit` 模式下仅存在非阻断警告且未指定严格 CI 门禁 |
+| `1` | **策略违规阻断** | 存在未满足的基线、命中黑名单或越界暴露；CI 门禁自动熔断 |
+
