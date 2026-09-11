@@ -20,7 +20,8 @@ Registries and marketplaces (skills.sh, Anthropic marketplace) answer *"where do
 - **Full directory audit & CI gate**: `skillpot audit` scans physical directories across all agents to detect unmanaged shadow skills bypassing SkillPot, and supports `--ci --fail-on <level>` with non-zero exit codes to guard deployment pipelines.
 - **Honest per-agent verification matrix**: Rejects unverified marketing claims. Publishes concrete verification evidence, specifications, and probe verification scripts for 8 agents + 1 broadcast channel.
 - **One central store** at `~/.skillpot/skills/` — a single source of truth with sha256 checksums and lockfile.
-- **Per-target switch matrix** — `config.yaml` drives a symlink sync engine; flip switches in the Web GUI, interactive TUI, or CLI.
+- **Per-target switch matrix & modern Web GUI** — `config.yaml` drives a symlink sync engine; rich Web GUI console featuring full-matrix switches, viewport-boundary-aware tooltips, row-level / column-level bulk toggles, in-modal direct switching, market targeted install, single-item check/update diffs, live environment reload, and zero nested scrollbars.
+- **Skill Suitability Advisor Engine** — Heuristic Token estimation, runtime script and external CLI command dependency detection, universal channel anti-flooding evaluation, and 4-tier suitability diagnosis (🟢 recommended / ⚪ neutral / 🟡 caution / 🔴 incompatible).
 - **Universal broadcast column** (`~/.agents/skills/`) — treated as a first-class target (`broadcast`), requiring explicit opt-in (never polluted by `--for all`).
 - **Doctor**: Broken links, drift, shadowed names, orphaned links — `--fix` repairs automatically.
 - **Team alignment**: Commit a `.skillpot.yaml` manifest; teammates run `skillpot sync` to achieve deterministic configuration across machines.

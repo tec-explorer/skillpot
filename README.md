@@ -22,7 +22,8 @@
 - **安装前安全扫描与默认阻断**：在文件落盘前深度扫描 `SKILL.md` 正文（提示词注入、隐藏 HTML 注释载荷、零宽字符混淆、Base64 动态执行、远程管道执行）与生命周期钩子，发现高危风险直接拒绝安装，可 `-f/--force` 强制放行
 - **全量物理目录审计与 CI 门禁**：`audit` 全量扫描各 Agent 物理目录，检出绕过 SkillPot 写入的未受管外部 skill 并审查安全隐患；支持 `--ci --fail-on <level>` 作为持续集成自动化门禁
 - **逐家实机验证证据表**：拒绝“虚标支持”，公开 8 家 Agent + 1 渠道的规范依据、发现路径、验证等级（实测 / 文档确认 / 未验证）与自动化探针脚本
-- **按目标精确开关**：`config.yaml` 驱动的 skill × 目标矩阵 + 软链接同步引擎；支持 TUI 矩阵可视化操作与 `skillpot gui` Web 控制台
+- **按目标精确开关与现代 Web 控制台**：`config.yaml` 驱动的 skill × 目标矩阵 + 软链接同步引擎；支持 TUI 矩阵与 `skillpot gui` Web 控制台（视口自适应防溢出 Tooltip、行/列级一键全开全停、详情弹窗就地启停、市场定向安装、单技能更新 diff、环境热刷新及彻底消除多重滚动条）
+- **智能适配度顾问引擎 (Advisor Engine)**：启发式 Token 快速估算、运行时与 CLI 外部命令依赖探测、通用渠道防泛洪评估与 4 级量化适配诊断（🟢 推荐 / ⚪ 按需 / 🟡 留意 / 🔴 缺依赖不兼容）
 - **通用广播一等列**：跨工具共享目录 `~/.agents/skills` 作为一等矩阵列（`broadcast`），与各 Agent 列并列显式开放，绝不隐式污染
 - **一处安装与中央仓库**：中央仓库 `~/.skillpot/skills/` 存唯一真身，自包含解除嵌套依赖，自带 sha256 checksum 与版本锁
 - **团队配置一键对齐**：通过项目级 `.skillpot.yaml` 清单，团队成员执行 `skillpot sync` 即可实现全员 skill 与版本一致性
@@ -146,7 +147,7 @@ skillpot doctor                      # 体检：断链/漂移/同名冲突
 | `audit [--json] [--ci] [--fail-on <level>]` | 审计：全量实际生效/未受管 skill、来源、安全隐患与 CI 门禁 |
 | `lint [skill] [--strict]` | 安全与质量检查：正文提示词注入、隐藏注释、Unicode 混淆、脚本高危模式 |
 | `update [skill] [--check]` | 检查/应用 git 来源 skill 的更新 |
-| `gui [--port] [--host] [--no-open]` | Web 控制台：开关矩阵/体检/收编/安装/市场/维护 |
+| `gui [--port] [--host] [--no-open]` | Web 控制台：全景开关矩阵、智能适配评估、就地启停、市场定向安装、体检修复与团队对齐 |
 | `market [url] [--refresh]` | 浏览技能源里的 skill（缺省扫描全部源） |
 | `sync [--file] [--export] [--dry-run]` | 团队对齐：按项目清单 `.skillpot.yaml` 安装/对齐 skill |
 | `policy [check\|apply\|init]` | 企业级策略治理：合规基线、黑白名单阻断与自动修复（Policy-as-Code） |
