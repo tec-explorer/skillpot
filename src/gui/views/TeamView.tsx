@@ -175,54 +175,56 @@ export function TeamView({ reload, toast }: Props) {
           {report.skills.length === 0 ? (
             <p className="dim" style={{ marginTop: 14 }}>清单里没有声明任何 skill。</p>
           ) : (
-            <table className="matrix update-table" style={{ marginTop: 14 }}>
-              <thead>
-                <tr>
-                  <th className="skill-col">Skill 技能</th>
-                  <th>来源</th>
-                  <th>开放 Agent</th>
-                  <th>本机状态与一致性</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.skills.map((s) => (
-                  <tr key={s.skill}>
-                    <td className="skill-name bold">{s.skill}</td>
-                    <td className="dim small mono src" title={s.source}>
-                      {s.source}
-                    </td>
-                    <td className="dim small">
-                      {Object.keys(s.expose).length > 0 ? (
-                        <span className="expose-pills">
-                          {Object.keys(s.expose).map((ag) => (
-                            <span key={ag} className="agent-tag-badge mini">
-                              {ag}
-                            </span>
-                          ))}
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>
-                      <span
-                        className={`status-pill ${
-                          s.checksumMatch === true
-                            ? 'latest'
-                            : s.checksumMatch === false
-                              ? 'outdated'
-                              : s.storeMissing
-                                ? 'error'
-                                : 'normal'
-                        }`}
-                      >
-                        {statusOf(s)}
-                      </span>
-                    </td>
+            <div className="table-responsive" style={{ marginTop: 14 }}>
+              <table className="matrix update-table">
+                <thead>
+                  <tr>
+                    <th className="skill-col">Skill 技能</th>
+                    <th>来源</th>
+                    <th>开放 Agent</th>
+                    <th>本机状态与一致性</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {report.skills.map((s) => (
+                    <tr key={s.skill}>
+                      <td className="skill-name bold">{s.skill}</td>
+                      <td className="dim small mono src" title={s.source}>
+                        {s.source}
+                      </td>
+                      <td className="dim small">
+                        {Object.keys(s.expose).length > 0 ? (
+                          <span className="expose-pills">
+                            {Object.keys(s.expose).map((ag) => (
+                              <span key={ag} className="agent-tag-badge mini">
+                                {ag}
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        <span
+                          className={`status-pill ${
+                            s.checksumMatch === true
+                              ? 'latest'
+                              : s.checksumMatch === false
+                                ? 'outdated'
+                                : s.storeMissing
+                                  ? 'error'
+                                  : 'normal'
+                          }`}
+                        >
+                          {statusOf(s)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </>
       )}
@@ -232,27 +234,29 @@ export function TeamView({ reload, toast }: Props) {
           <div className="result-title">
             {dryRunItems ? '预演结果（未做变更）' : '对齐结果'}
           </div>
-          <table className="matrix update-table">
-            <thead>
-              <tr>
-                <th className="skill-col">Skill</th>
-                <th>动作</th>
-                <th>说明</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.skill}>
-                  <td className="skill-name">{i.skill}</td>
-                  <td className={i.action === 'error' ? 'warn-text' : ''}>
-                    {SYNC_ACTION_LABEL[i.action]}
-                    {i.dryRun ? '（将执行）' : ''}
-                  </td>
-                  <td className="dim small">{i.detail ?? ''}</td>
+          <div className="table-responsive">
+            <table className="matrix update-table">
+              <thead>
+                <tr>
+                  <th className="skill-col">Skill</th>
+                  <th>动作</th>
+                  <th>说明</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((i) => (
+                  <tr key={i.skill}>
+                    <td className="skill-name">{i.skill}</td>
+                    <td className={i.action === 'error' ? 'warn-text' : ''}>
+                      {SYNC_ACTION_LABEL[i.action]}
+                      {i.dryRun ? '（将执行）' : ''}
+                    </td>
+                    <td className="dim small">{i.detail ?? ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

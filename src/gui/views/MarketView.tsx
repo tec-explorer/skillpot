@@ -233,56 +233,58 @@ export function MarketView({ rev, reload, toast }: Props) {
           {visibleSkills.length === 0 ? (
             <p className="dim">没有匹配的 skill（换个关键词试试）。</p>
           ) : (
-            <table className="matrix update-table">
-              <thead>
-                <tr>
-                  <th className="skill-col">Skill 技能</th>
-                  <th>说明</th>
-                  <th style={{ width: 150 }}>子目录</th>
-                  <th style={{ width: 140, textAlign: 'center' }}>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleSkills.map((s) => (
-                  <tr key={s.subdir}>
-                    <td
-                      className="skill-name link"
-                      title="点击查看详情与提示词"
-                      onClick={() => setPreviewSkill(s)}
-                    >
-                      <div className="skill-market-title">
-                        <span>{s.name}</span>
-                        {s.installed && <span className="badge-installed">已装</span>}
-                      </div>
-                    </td>
-                    <td className="dim small">{s.description || '（无说明）'}</td>
-                    <td className="dim small mono">{s.subdir}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
-                        <button
-                          className="btn small-btn ghost"
-                          onClick={() => setPreviewSkill(s)}
-                          title="查看 SKILL.md 提示词与安全体检"
-                        >
-                          详情
-                        </button>
-                        {s.installed ? (
-                          <span className="dim small">已就绪</span>
-                        ) : (
-                          <button
-                            className="btn small-btn primary"
-                            disabled={installing !== null}
-                            onClick={() => install(s)}
-                          >
-                            {installing === s.subdir ? '安装中…' : '安装'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
+            <div className="table-responsive">
+              <table className="matrix update-table">
+                <thead>
+                  <tr>
+                    <th className="skill-col">Skill 技能</th>
+                    <th>说明</th>
+                    <th style={{ width: 150 }}>子目录</th>
+                    <th style={{ width: 140, textAlign: 'center' }}>操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visibleSkills.map((s) => (
+                    <tr key={s.subdir}>
+                      <td
+                        className="skill-name link"
+                        title="点击查看详情与提示词"
+                        onClick={() => setPreviewSkill(s)}
+                      >
+                        <div className="skill-market-title">
+                          <span>{s.name}</span>
+                          {s.installed && <span className="badge-installed">已装</span>}
+                        </div>
+                      </td>
+                      <td className="dim small">{s.description || '（无说明）'}</td>
+                      <td className="dim small mono">{s.subdir}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
+                          <button
+                            className="btn small-btn ghost"
+                            onClick={() => setPreviewSkill(s)}
+                            title="查看 SKILL.md 提示词与安全体检"
+                          >
+                            详情
+                          </button>
+                          {s.installed ? (
+                            <span className="dim small">已就绪</span>
+                          ) : (
+                            <button
+                              className="btn small-btn primary"
+                              disabled={installing !== null}
+                              onClick={() => install(s)}
+                            >
+                              {installing === s.subdir ? '安装中…' : '安装'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           {filteredSkills.length > visible && (
             <div className="load-more">

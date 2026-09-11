@@ -19,29 +19,78 @@
   box-sizing: border-box;
 }
 
+html,
 body {
+  height: 100%;
   margin: 0;
+  overflow: hidden; /* 彻底根除窗口级多重滚动条 */
   background: var(--bg);
   color: var(--ink);
   font: 14px/1.6 -apple-system, 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
+/* 自定义优雅细滚动条，避免原生粗大滚动条重叠 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 .app {
+  height: 100vh;
   max-width: 1240px;
   margin: 0 auto;
-  padding: 0 24px 60px;
+  padding: 0 24px 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 /* 顶栏 */
 .topbar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 14px 0;
+  gap: 20px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--line);
-  margin-bottom: 20px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
+}
+
+/* 主内容容器 */
+.content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 矩阵视图专有模式：本身不滚动，容器高度充满视窗，由 card 内部 table 承载唯一滚动条 */
+.content.matrix-mode {
+  overflow: hidden;
+}
+
+/* 常规面板视图模式：内容超长时由 content 统一承载单级垂直滚动，各 panel 自身不设高度溢出 */
+.content.panel-mode {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  padding-bottom: 24px;
 }
 
 .brand {
@@ -150,6 +199,14 @@ body {
 }
 
 /* 矩阵卡片与滚动容器 */
+.matrix-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .matrix-card {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -157,8 +214,8 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 160px);
-  min-height: 420px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -1014,22 +1071,26 @@ body {
   background: #fafbfc;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 8px 12px;
-  max-height: 140px;
-  overflow: auto;
+  padding: 10px 14px;
+  max-height: none;
+  overflow: visible;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 4px 12px;
 }
 
 .skill-md {
   background: #fafbfc;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 12px 16px;
+  padding: 14px 18px;
   font-size: 12.5px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  max-height: 320px;
-  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  max-height: none;
+  overflow: visible;
   white-space: pre-wrap;
   word-break: break-word;
+  line-height: 1.6;
 }
 
 /* 表单与面板（安装 / 收编） */
@@ -1938,8 +1999,16 @@ body {
   gap: 8px;
 }
 
-.violations-table-wrap {
+.table-responsive {
+  width: 100%;
   overflow-x: auto;
+  overflow-y: visible;
+}
+
+.violations-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .policy-table {

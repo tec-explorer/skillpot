@@ -91,7 +91,7 @@ export function App() {
         <div className="meta">{skillCount} 个 skill · 中央仓库 ~/.skillpot</div>
       </header>
 
-      <main className="content">
+      <main className={`content ${tab === 'matrix' ? 'matrix-mode' : 'panel-mode'}`}>
         {!state ? (
           <div className="loading">加载中…（首次会探测本机 Agent，可能需要数秒）</div>
         ) : tab === 'matrix' ? (

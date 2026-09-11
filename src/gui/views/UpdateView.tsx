@@ -100,77 +100,79 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
         </div>
       )}
 
-      <table className="matrix update-table">
-        <thead>
-          <tr>
-            <th className="skill-col">Skill 技能</th>
-            <th>来源与类型</th>
-            <th>更新状态</th>
-            <th style={{ width: 100, textAlign: 'center' }}>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((s) => {
-            const st = statusOf(s.name);
-            const git = isGitSource(s.source);
-            return (
-              <tr key={s.name}>
-                <td className="skill-name link" onClick={() => onOpenDetail(s.name)}>
-                  <span className="bold">{s.name}</span>
-                  <span className="dim small" style={{ marginLeft: 6 }}>↗</span>
-                </td>
-                <td className="src-cell">
-                  <span className={`src-badge ${git ? 'git' : 'local'}`}>
-                    {git ? 'Git' : '本地'}
-                  </span>
-                  <span className="dim small mono src-text" title={s.source}>
-                    {s.source}
-                  </span>
-                </td>
-                <td>
-                  <div className="update-status-wrap">
-                    {st ? (
-                      <span className={`status-pill ${st.status}`}>
-                        {UPDATE_STATUS_LABEL[st.status]}
-                      </span>
+      <div className="table-responsive">
+        <table className="matrix update-table">
+          <thead>
+            <tr>
+              <th className="skill-col">Skill 技能</th>
+              <th>来源与类型</th>
+              <th>更新状态</th>
+              <th style={{ width: 100, textAlign: 'center' }}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((s) => {
+              const st = statusOf(s.name);
+              const git = isGitSource(s.source);
+              return (
+                <tr key={s.name}>
+                  <td className="skill-name link" onClick={() => onOpenDetail(s.name)}>
+                    <span className="bold">{s.name}</span>
+                    <span className="dim small" style={{ marginLeft: 6 }}>↗</span>
+                  </td>
+                  <td className="src-cell">
+                    <span className={`src-badge ${git ? 'git' : 'local'}`}>
+                      {git ? 'Git' : '本地'}
+                    </span>
+                    <span className="dim small mono src-text" title={s.source}>
+                      {s.source}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="update-status-wrap">
+                      {st ? (
+                        <span className={`status-pill ${st.status}`}>
+                          {UPDATE_STATUS_LABEL[st.status]}
+                        </span>
+                      ) : (
+                        <span className="dim small">未检查</span>
+                      )}
+                      {st?.diff && (
+                        <span className="diff-badges">
+                          {st.diff.added.length > 0 && (
+                            <span className="diff-pill add">+{st.diff.added.length}</span>
+                          )}
+                          {st.diff.modified.length > 0 && (
+                            <span className="diff-pill mod">~{st.diff.modified.length}</span>
+                          )}
+                          {st.diff.removed.length > 0 && (
+                            <span className="diff-pill del">-{st.diff.removed.length}</span>
+                          )}
+                        </span>
+                      )}
+                      {st?.detail && <span className="dim small"> ({st.detail})</span>}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    {git ? (
+                      <button
+                        className={`btn small-btn ${st?.status === 'outdated' ? 'primary' : 'subtle'}`}
+                        disabled={updating !== null || st?.status !== 'outdated'}
+                        onClick={() => apply(s.name)}
+                        title={st?.status === 'outdated' ? '原位拉取并更新' : '当前无待更新内容'}
+                      >
+                        {updating === s.name ? '更新中…' : '更新'}
+                      </button>
                     ) : (
-                      <span className="dim small">未检查</span>
+                      <span className="dim small">本地跳过</span>
                     )}
-                    {st?.diff && (
-                      <span className="diff-badges">
-                        {st.diff.added.length > 0 && (
-                          <span className="diff-pill add">+{st.diff.added.length}</span>
-                        )}
-                        {st.diff.modified.length > 0 && (
-                          <span className="diff-pill mod">~{st.diff.modified.length}</span>
-                        )}
-                        {st.diff.removed.length > 0 && (
-                          <span className="diff-pill del">-{st.diff.removed.length}</span>
-                        )}
-                      </span>
-                    )}
-                    {st?.detail && <span className="dim small"> ({st.detail})</span>}
-                  </div>
-                </td>
-                <td style={{ textAlign: 'center' }}>
-                  {git ? (
-                    <button
-                      className={`btn small-btn ${st?.status === 'outdated' ? 'primary' : 'subtle'}`}
-                      disabled={updating !== null || st?.status !== 'outdated'}
-                      onClick={() => apply(s.name)}
-                      title={st?.status === 'outdated' ? '原位拉取并更新' : '当前无待更新内容'}
-                    >
-                      {updating === s.name ? '更新中…' : '更新'}
-                    </button>
-                  ) : (
-                    <span className="dim small">本地跳过</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
