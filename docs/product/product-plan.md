@@ -275,8 +275,8 @@ Skill 本质是**注入模型上下文的指令 + 可携带可执行脚本**，�
 - [x] Homebrew 分发通道：提供 `Formula/skillpot.rb` 与自动化计算 SHA256 脚本 `scripts/generate-brew-formula.sh`。
 - [x] 自身版本检查 / 自更新提示：轻量非阻塞版本比对，24h 本地缓存，命令执行完成退出时友善提示更新。
 - [x] GitHub 仓库元数据与海外社区宣发：在 `docs/ecosystem/community-launch.md` 中整理全套 HN, Reddit, X (Twitter), Discord 发布草案与 `gh repo edit` 命令。
-- [ ] Windows 支持评估（symlink 需开发者模式/管理员权限，CI 无 Windows 任务）。
-- [ ] 进程内 `detectAll()` 无缓存（GUI 已缓存 60s，CLI/TUI 每次全量 spawn `--version`）。
+- [x] Windows 支持与平滑降级：symlink 遇到 EPERM/EACCES 自动平滑降级为 B 档 copy 策略落地并闭环记入台账（`tests/windows-fallback.test.ts`）。
+- [x] Agent 检测本地文件缓存：5 分钟 TTL 本地缓存 + `skillpot agents --refresh` 强制重测机制，大幅提速 CLI/TUI 冷启动（`tests/detect-cache.test.ts`）。
 
 GitHub 元数据命令（有凭据的机器上执行）：
 
@@ -353,4 +353,6 @@ npm 查重：`skillpot` 可用；`skillhub`（v0.4.1，同类产品）与 `skill
 - 2026-09-10 Phase 4（v0.15.0 企业级策略治理与私有 Registry）：详见 [CHANGELOG.md](../../CHANGELOG.md#0150---2026-09-10) 与 [enterprise-policy.md](../design/enterprise-policy.md)
 - 2026-09-10 Web GUI 策略面板（v0.16.0 策略看板、在线 YAML 编辑器与一键修复）：详见 [CHANGELOG.md](../../CHANGELOG.md#0160---2026-09-10)
 - 2026-09-10 生态与 CI 扩圈（v0.17.0 官方 GitHub Action、Homebrew 分发与自更新检查）：详见 [CHANGELOG.md](../../CHANGELOG.md#0170---2026-09-10) 与 [docs/ecosystem/](../ecosystem/)
+- 2026-09-11 文档优化与纠错（v0.17.1 策略 YAML 语法对齐、验证矩阵纠偏与系统架构全景图）：详见 [CHANGELOG.md](../../CHANGELOG.md#0171---2026-09-11)
+- 2026-09-11 工程微调（v0.18.0 Agent 检测本地文件缓存与 Windows 符号链接平滑降级）：详见 [CHANGELOG.md](../../CHANGELOG.md#0180---2026-09-11)
 

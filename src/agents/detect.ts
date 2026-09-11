@@ -3,7 +3,41 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { AgentAdapter, AgentDetectResult } from '../types';
 import { AGENTS } from './registry';
-import { agentHome } from '../paths';
+import { agentHome, skillpotHome } from '../paths';
+import { VERSION } from '../version';
+
+export interface DetectOptions {
+  /** 强制忽略缓存重新探测 */
+  refresh?: boolean;
+  /** 完全不读写缓存 */
+  noCache?: boolean;
+}
+
+export interface DetectCacheData {
+  timestamp: number;
+  ttl: number;
+  version: string;
+  results: AgentDetectResult[];
+}
+
+export const DETECT_CACHE_FILE = '.agents-cache.json';
+export const DEFAULT_DETECT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟
+
+export function detectCachePath(): string {
+  return path.join(skillpotHome(), DETECT_CACHE_FILE);
+}
+
+/** 清理检测缓存文件 */
+export function clearDetectCache(): void {
+  try {
+    const file = detectCachePath();
+    if (fs.existsSync(file)) {
+      fs.unlinkSync(file);
+    }
+  } catch {
+    // 忽略删除失败
+  }
+}
 
 function findBinary(bin: string): string | null {
   const dirs = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
@@ -83,6 +117,50 @@ export function detectAgent(adapter: AgentAdapter): AgentDetectResult {
   };
 }
 
-export function detectAll(): AgentDetectResult[] {
-  return AGENTS.map(detectAgent);
+export function detectAll(options?: DetectOptions): AgentDetectResult[] {
+  const shouldBypass = Boolean(
+    options?.refresh ||
+    options?.noCache ||
+    process.env.SKILLPOT_NO_DETECT_CACHE === '1'
+  );
+  const cacheFile = detectCachePath();
+
+  if (!shouldBypass) {
+    try {
+      if (fs.existsSync(cacheFile)) {
+        const raw = fs.readFileSync(cacheFile, 'utf8');
+        const data = JSON.parse(raw) as DetectCacheData;
+        if (
+          data &&
+          typeof data === 'object' &&
+          Array.isArray(data.results) &&
+          data.version === VERSION &&
+          Date.now() - data.timestamp < (data.ttl || DEFAULT_DETECT_CACHE_TTL_MS)
+        ) {
+          return data.results;
+        }
+      }
+    } catch {
+      // 缓存文件损坏或不可读，退回实时扫描
+    }
+  }
+
+  const results = AGENTS.map(detectAgent);
+
+  if (!options?.noCache && process.env.SKILLPOT_NO_DETECT_CACHE !== '1') {
+    try {
+      const cacheData: DetectCacheData = {
+        timestamp: Date.now(),
+        ttl: DEFAULT_DETECT_CACHE_TTL_MS,
+        version: VERSION,
+        results,
+      };
+      fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+      fs.writeFileSync(cacheFile, JSON.stringify(cacheData, null, 2), 'utf8');
+    } catch {
+      // 写入缓存失败忽略
+    }
+  }
+
+  return results;
 }

@@ -28,7 +28,7 @@ import { startGuiServer } from './core/gui-server';
 import { runTui } from './tui/index';
 import { renderTable } from './util/table';
 import { VERSION } from './version';
-import { VERIFY_LABELS, VerifyLevel } from './types';
+import { AgentDetectResult, VERIFY_LABELS, VerifyLevel } from './types';
 import { initUpdateNotifier } from './util/update-notifier';
 
 const program = new Command();
@@ -66,8 +66,8 @@ function verifyTag(level: VerifyLevel): string {
   return label;
 }
 
-function printAgents(): void {
-  const results = detectAll();
+function printAgents(precomputed?: AgentDetectResult[]): void {
+  const results = precomputed ?? detectAll();
   const rows = results.map((r) => [
     r.kind === 'channel' ? `${r.name}${pc.dim('（共享目录）')}` : r.name,
     r.kind === 'channel' ? pc.dim('channel') : r.installed ? pc.green('yes') : pc.dim('no'),
@@ -185,14 +185,15 @@ program
   .command('agents')
   .description('检测本机安装的编程 Agent 及其 skill 能力')
   .option('--json', '以 JSON 输出')
+  .option('--refresh', '强制忽略缓存重新探测本机 Agent')
   .action(
-    run((opts: { json?: boolean }) => {
-      const results = detectAll();
+    run((opts: { json?: boolean; refresh?: boolean }) => {
+      const results = detectAll({ refresh: opts.refresh });
       if (opts.json) {
         console.log(JSON.stringify(results, null, 2));
         return;
       }
-      printAgents();
+      printAgents(results);
     }),
   );
 

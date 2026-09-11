@@ -3,6 +3,22 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.18.0] - 2026-09-11
+
+工程微调与跨平台韧性：Agent 检测本地文件缓存与 Windows 符号链接平滑降级。
+
+### Added
+- **Agent 检测本地文件缓存 (`src/agents/detect.ts`)**：
+  - 引入轻量文件级检测缓存（`~/.skillpot/.agents-cache.json`），默认 TTL 为 5 分钟（300,000 ms）。
+  - 解决 CLI/TUI 高频冷启动时遍历 PATH 与反复 spawn `--version` 的子进程创建开销，显著提速命令行执行。
+  - `skillpot agents` 命令新增 `--refresh` 选项（强制忽略缓存重新探测实机环境）。
+  - 新增测试套件 `tests/detect-cache.test.ts`。
+- **Windows 符号链接 `EPERM` 自动平滑降级 (`src/core/sync.ts`)**：
+  - 智能捕获符号链接创建失败时的 `EPERM` / `EACCES` 异常。
+  - 针对 Windows 未开启开发者模式或非管理员环境，自动平滑降级为现成的 B 档拷贝模式（`copy`）落地并闭环记入台账。
+  - 同步修正 `addLedger` 更新台账条目 `kind` 状态的机制。
+  - 新增测试套件 `tests/windows-fallback.test.ts`。
+
 ## [0.17.1] - 2026-09-11
 
 文档体系全面优化与纠错：策略 YAML 规范对齐、逐家验证矩阵表格纠偏、顶层架构全景图与规范手册。

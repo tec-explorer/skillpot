@@ -1,6 +1,6 @@
 # 官方 GitHub Action：SkillPot Security & Policy Gate
 
-> 仓库路径：[`action.yml`](../../action.yml) ｜ 市场标识：`tec-explorer/skillpot@v0.17.0`（或 `@main`）
+> 仓库路径：[`action.yml`](../../action.yml) ｜ 市场标识：`tec-explorer/skillpot@v0.18.0`（或 `@main`）
 
 SkillPot 提供标准化的 GitHub Action，方便团队在 CI/CD 流水线中针对 Agent Skills 设立**全量供应链安全扫描与组织合规门禁**。
 

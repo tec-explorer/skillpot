@@ -242,7 +242,7 @@ CLI 内置非阻塞版本更新提示器（`src/util/update-notifier.ts`）：
 | 命令 | 说明 |
 |---|---|
 | `skillpot init` | 初始化中央仓库 + Agent 检测 |
-| `skillpot agents [--json]` | 检测本机 Agent、skills 目录与各目标验证等级 |
+| `skillpot agents [--json] [--refresh]` | 检测本机 Agent、skills 目录与各目标验证等级（--refresh 强制跳过缓存重新探测） |
 | `skillpot add <source> [-f]` | 安装(本地目录 / git URL#subdir)，安装前安全扫描，`-f` 强制放行 |
 | `skillpot list [--agent id\|broadcast]` | 列出仓库 skill 与开放状态 |
 | `skillpot enable/disable <skill> --for <targets>` | 开关(targets 支持逗号分隔、`broadcast` 或 `all`;`all` 不含通用广播) |

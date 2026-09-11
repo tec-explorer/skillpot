@@ -1,8 +1,8 @@
 class Skillpot < Formula
   desc "Cross-agent skill supply chain security & governance layer for coding agents"
   homepage "https://github.com/tec-explorer/skillpot"
-  url "https://registry.npmjs.org/@tec-explorer/skillpot/-/@tec-explorer/skillpot-0.17.1.tgz"
-  sha256 "189e09f95f32f2f7aa5b8c80d80a6e7310e9edb9d35353f7f31ad64715cbff1d"
+  url "https://registry.npmjs.org/@tec-explorer/skillpot/-/@tec-explorer/skillpot-0.18.0.tgz"
+  sha256 "c93fc3ea740402e4fea867c48bfa8e4fcb9ad9d37a179a415cbc2b673e2a1769"
   license "MIT"
 
   depends_on "node"

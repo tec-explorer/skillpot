@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import pc from 'picocolors';
 import { agentHome, skillDir } from '../paths';
 import { loadConfig, loadState, saveConfig, saveState } from './config';
 import { BROADCAST_AGENT_ID, allAgentIds, allTargetIds, getAgent, isChannel } from '../agents/registry';
@@ -58,8 +59,17 @@ function addLedger(
   linkPath: string,
   kind: 'symlink' | 'copy' = 'symlink',
 ): void {
-  if (!ledgerHas(state, skill, agent, linkPath)) {
+  const existing = state.links.find(
+    (l) => l.skill === skill && l.agent === agent && l.link_path === linkPath,
+  );
+  if (!existing) {
     state.links.push({ skill, agent, link_path: linkPath, ...(kind === 'copy' ? { kind } : {}) });
+  } else {
+    if (kind === 'copy') {
+      existing.kind = 'copy';
+    } else {
+      delete existing.kind;
+    }
   }
 }
 
@@ -158,10 +168,23 @@ function enableOne(
       if (!resolved && ledgerHas(state, skill, agentId, target)) {
         // 我们自己的链接断了（如 store 曾被移动）：重建
         fs.rmSync(target);
-        fs.symlinkSync(src, target, 'dir');
-        addLedger(state, skill, agentId, target);
-        entry.expose[agentId] = true;
-        return null;
+        try {
+          fs.symlinkSync(src, target, 'dir');
+          addLedger(state, skill, agentId, target);
+          entry.expose[agentId] = true;
+          return null;
+        } catch (err: any) {
+          if (err && (err.code === 'EPERM' || err.code === 'EACCES')) {
+            console.warn(
+              pc.yellow(`⚠ 符号链接权限受限 (${err.code})，已自动平滑降级为 B 档拷贝模式 (copy) 落地：${target}`),
+            );
+            copyInto(src, target);
+            addLedger(state, skill, agentId, target, 'copy');
+            entry.expose[agentId] = true;
+            return null;
+          }
+          throw err;
+        }
       }
       return `${target} 已被其他链接占用 -> ${safeReadlink(target)}`;
     }
@@ -169,10 +192,23 @@ function enableOne(
   }
 
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.symlinkSync(src, target, 'dir');
-  addLedger(state, skill, agentId, target);
-  entry.expose[agentId] = true;
-  return null;
+  try {
+    fs.symlinkSync(src, target, 'dir');
+    addLedger(state, skill, agentId, target);
+    entry.expose[agentId] = true;
+    return null;
+  } catch (err: any) {
+    if (err && (err.code === 'EPERM' || err.code === 'EACCES')) {
+      console.warn(
+        pc.yellow(`⚠ 符号链接权限受限 (${err.code})，已自动平滑降级为 B 档拷贝模式 (copy) 落地：${target}`),
+      );
+      copyInto(src, target);
+      addLedger(state, skill, agentId, target, 'copy');
+      entry.expose[agentId] = true;
+      return null;
+    }
+    throw err;
+  }
 }
 
 /** 把单个目标撤到"关闭"状态；返回 null 表示已达成，否则返回跳过原因 */
