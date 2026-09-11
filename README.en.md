@@ -124,6 +124,36 @@ Matrix columns come in two kinds: concrete **agents** (`claude-code`, `codex`, �
 
 Landing strategies per agent: **A** symlink (default) → **B** copy + resync (agents that don't follow symlinks) → **C** MCP bridge (universal fallback).
 
+## Web Console (Web GUI)
+
+Launch a modern, high-performance Skill governance and supply-chain security console in your browser with a single command:
+
+```bash
+skillpot gui                # Start and automatically open browser (http://127.0.0.1:3721)
+skillpot gui --port 8080    # Custom port
+skillpot gui --host 0.0.0.0 # LAN sharing mode (enforces token authentication)
+```
+
+### Core Dashboards & Panels
+
+| Module | Features & Capabilities | Key Value |
+|---|---|---|
+| **Switch Matrix (Matrix)** | Skills as rows, agents & broadcast as columns; viewport-boundary-aware tooltips, row-level & column-level bulk toggles, target agent dropdown filter, pinned card footer with pagination | Bird's-eye view of your cross-agent skill topology with instant toggling |
+| **Suitability Advisor** | Heuristic token estimator, static CLI/runtime dependency detection, 4-tier suitability diagnosis (🟢 recommended / ⚪ neutral / 🟡 caution / 🔴 incompatible) | Prevents context window bloat and missing script execution dependencies |
+| **Detail Modal (DetailModal)** | Inspect descriptions, file trees, `SKILL.md` code, security audit status; **direct Toggle Switch inside suitability cards**, `Esc` key dismiss | Toggle skills directly after reviewing diagnostics without leaving the modal |
+| **System Doctor (Doctor)** | Three-way consistency diagnosis; **"Go to Adopt ↗"** direct action button on orphan items; 100% healthy shield status badge | Eliminates broken links and ledger drifts with one-click automatic repair |
+| **Adopt (Adopt)** | Scans physical skills in agent directories; supports copy and move modes; clean health card and instant search reset | Consolidates scattered local skills into the centralized store |
+| **Install (Add)** | Shallow clones git repos or local directories; pre-install security gate; instant action links upon success | Safe ingestion and immediate multi-agent exposure |
+| **Skill Market (Market)** | Anthropic/Vercel/community sources; **deep Prompt preview drawer** with syntax highlighting; **target agent selection chips for direct exposure** | Browse verified skills and install directly to selected agents in one step |
+| **Maintenance (Update)** | Single-skill check and apply, top "Update All" button, expandable diff drawer (`added`/`modified`/`removed`) | Precise visibility into skill evolution and file-level modifications |
+| **Team Sync (Team)** | One-click workspace default `./.skillpot.yaml` path filling; dry-run, export, align, and green summary stats | Deterministic skill versions and exposure across team members |
+| **Policy Governance (Policy)** | Policy dashboard, compliance audit, one-click autofix, rule topology grid, and inline YAML editor | Organization-wide compliance baseline enforcement and blacklist gating |
+
+### Modern Interaction Standards
+- **Root-locked viewport & single-layer smooth scrolling**: Separates `matrix-mode` (table's internal scrolling with pinned footer) and `panel-mode` (outer container handles scrolling naturally), eliminating dual browser scrollbars and nested scroll-traps.
+- **Smart boundary tooltip**: Detects viewport boundaries dynamically, automatically flipping upwards (`.flip-up`) when near the bottom and clamping horizontally.
+- **Live environment refresh**: Topbar "⟳ Refresh Env" button invalidates probe caches and re-detects local agents instantly; Doctor tab badge indicates unresolved issues dynamically.
+
 ## Per-Agent Verification Matrix
 
 > Rejects marketing claims without evidence. SkillPot publishes each agent's specification source, discovery path, verified status, and automated probe commands.
