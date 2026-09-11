@@ -9,11 +9,12 @@ interface Props {
   rev: number;
   reload: () => Promise<void>;
   toast: (text: string, bad?: boolean) => void;
+  agents?: { id: string; name: string; installed: boolean }[];
 }
 
 const PAGE_SIZE = 20;
 
-export function MarketView({ rev, reload, toast }: Props) {
+export function MarketView({ rev, reload, toast, agents = [] }: Props) {
   const [sources, setSources] = useState<SourceInfo[] | null>(null);
   const [selected, setSelected] = useState<string>('');
   const [skills, setSkills] = useState<MarketSkill[] | null>(null);
@@ -286,15 +287,36 @@ export function MarketView({ rev, reload, toast }: Props) {
               </table>
             </div>
           )}
-          {filteredSkills.length > visible && (
-            <div className="load-more">
-              <button className="btn small-btn subtle" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
-                加载更多（已显示 {visible}/{filteredSkills.length}）
+          {filteredSkills.length > visible ? (
+            <div className="matrix-load-group" style={{ marginTop: 14 }}>
+              <button
+                className="btn-footer primary"
+                onClick={() => setVisible((v) => v + PAGE_SIZE)}
+              >
+                加载下 {PAGE_SIZE} 项（已显示 {visible}/{filteredSkills.length}）
+              </button>
+              <button
+                className="btn-footer subtle"
+                onClick={() => setVisible(filteredSkills.length)}
+              >
+                展开全部 ({filteredSkills.length})
               </button>
             </div>
+          ) : (
+            filteredSkills.length > PAGE_SIZE && (
+              <div className="matrix-total-badge" style={{ marginTop: 14 }}>
+                <span>已显示全部 {filteredSkills.length} 项 Skill</span>
+                <button
+                  className="btn-footer link"
+                  onClick={() => setVisible(PAGE_SIZE)}
+                >
+                  收起至前 {PAGE_SIZE} 项
+                </button>
+              </div>
+            )
           )}
           <p className="legend" style={{ marginTop: 14 }}>
-            💡 安装提示：内容拷贝进中央仓库后，默认不对任何 Agent 开放，可至「开关矩阵」按需勾选开放。
+            💡 安装提示：内容拷贝进中央仓库后，在预览弹窗中即可直接勾选开放给目标 Agent；亦可随时在「开关矩阵」按需启停。
           </p>
         </>
       )}
@@ -303,6 +325,7 @@ export function MarketView({ rev, reload, toast }: Props) {
         <MarketPreviewModal
           skill={previewSkill}
           url={selected}
+          agents={agents}
           onClose={() => setPreviewSkill(null)}
           onInstalled={(sub) =>
             setSkills((prev) =>

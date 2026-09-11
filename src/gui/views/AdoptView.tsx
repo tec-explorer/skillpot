@@ -141,96 +141,125 @@ export function AdoptView({ rev, reload, toast }: Props) {
         </button>
       </div>
 
-      <div className="adopt-options-card">
-        <label className="adopt-option-item">
-          <input type="checkbox" checked={move} onChange={(e) => setMove(e.target.checked)} />
-          <div className="adopt-opt-text">
-            <span className="opt-title">移动模式（推荐）</span>
-            <span className="opt-desc">内容拷入中央仓库后，原目录替换为指向仓库的软链接，来源 Agent 继续无感可用</span>
-          </div>
-        </label>
-        <label className="adopt-option-item">
-          <input
-            type="checkbox"
-            checked={enableAll}
-            onChange={(e) => setEnableAll(e.target.checked)}
-          />
-          <div className="adopt-opt-text">
-            <span className="opt-title">收编后自动开放</span>
-            <span className="opt-desc">在 SkillPot 开关矩阵中立即将收编成功的 skill 标记为对来源 Agent 开放</span>
-          </div>
-        </label>
-      </div>
-
-      {total > 0 && (
-        <div className="toolbar" style={{ marginTop: 14 }}>
-          <input
-            className="input grow"
-            placeholder="搜索名称 / 路径…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <span className="dim small">
-            {visibleTotal}/{total}
-          </span>
-        </div>
-      )}
-
       {total === 0 ? (
-        <p className="dim">
-          各已安装 Agent 的 skills 目录下没有可收编的真实目录（受管 symlink 与外部链接会自动跳过）。
-        </p>
-      ) : (
-        visibleAgents!
-          .filter((a) => a.skills.length > 0)
-          .map((a) => (
-            <div key={a.id} className="adopt-group">
-              <div className="adopt-agent-header">
-                <div className="adopt-agent-title">
-                  <span className="adopt-agent-name">{a.name}</span>
-                  <span className="dim small">({a.skills.length} 项)</span>
-                </div>
-                <div className="adopt-agent-actions">
-                  <button
-                    type="button"
-                    className="bulk-pill-btn"
-                    onClick={() => selectAgentAll(a.id, a.skills)}
-                  >
-                    全选
-                  </button>
-                  <span className="bulk-divider" />
-                  <button
-                    type="button"
-                    className="bulk-pill-btn"
-                    onClick={() => unselectAgentAll(a.id, a.skills)}
-                  >
-                    取消
-                  </button>
-                </div>
-              </div>
-              <div className="adopt-items-grid">
-                {a.skills.map((s) => {
-                  const k = keyOf(a.id, s.name);
-                  return (
-                    <label key={k} className={s.valid ? 'adopt-item' : 'adopt-item off'}>
-                      <input
-                        type="checkbox"
-                        disabled={!s.valid}
-                        checked={checked.has(k)}
-                        onChange={() => toggle(k)}
-                      />
-                      <span className="mono bold">{s.name}</span>
-                      <span className="dim small path">{s.path}</span>
-                      {s.inStore && (
-                        <span className="badge badge-warn">仓库已有同名,move 时替换为 symlink</span>
-                      )}
-                      {!s.valid && <span className="badge badge-error">目录名不合法</span>}
-                    </label>
-                  );
-                })}
-              </div>
+        <div className="health-card healthy" style={{ marginTop: 14 }}>
+          <div className="health-icon">🛡️</div>
+          <div className="health-info">
+            <div className="health-title">所有已安装 Agent 目录干净健全，未发现孤立外部技能</div>
+            <div className="health-desc">
+              各 Agent 的 skills 目录下均为本工具受管软链接或没有外部真实目录。如需新增技能，可通过顶部「安装」或「市场」模块引入。
             </div>
-          ))
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="adopt-options-card">
+            <label className="adopt-option-item">
+              <input type="checkbox" checked={move} onChange={(e) => setMove(e.target.checked)} />
+              <div className="adopt-opt-text">
+                <span className="opt-title">移动模式（推荐）</span>
+                <span className="opt-desc">内容拷入中央仓库后，原目录替换为指向仓库的软链接，来源 Agent 继续无感可用</span>
+              </div>
+            </label>
+            <label className="adopt-option-item">
+              <input
+                type="checkbox"
+                checked={enableAll}
+                onChange={(e) => setEnableAll(e.target.checked)}
+              />
+              <div className="adopt-opt-text">
+                <span className="opt-title">收编后自动开放</span>
+                <span className="opt-desc">在 SkillPot 开关矩阵中立即将收编成功的 skill 标记为对来源 Agent 开放</span>
+              </div>
+            </label>
+          </div>
+
+          <div className="toolbar" style={{ marginTop: 14 }}>
+            <input
+              className="input grow"
+              placeholder="搜索名称 / 路径…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <span className="dim small">
+              {visibleTotal}/{total} 项
+            </span>
+          </div>
+
+          {visibleTotal === 0 ? (
+            <div className="matrix-empty-search" style={{ margin: '24px 0' }}>
+              <div className="empty-search-icon">🔍</div>
+              <div className="empty-search-title">未找到匹配的待收编技能</div>
+              <div className="dim small">换个搜索词或点击下方清空搜索</div>
+              <button
+                className="btn small-btn subtle"
+                onClick={() => setQuery('')}
+                style={{ marginTop: 10 }}
+              >
+                清空搜索
+              </button>
+            </div>
+          ) : (
+            visibleAgents!
+              .filter((a) => a.skills.length > 0)
+              .map((a) => (
+                <div key={a.id} className="adopt-group">
+                  <div className="adopt-agent-header">
+                    <div className="adopt-agent-title">
+                      <span className="adopt-agent-name">{a.name}</span>
+                      <span className="dim small">({a.skills.length} 项)</span>
+                    </div>
+                    <div className="adopt-agent-actions">
+                      <button
+                        type="button"
+                        className="bulk-pill-btn"
+                        onClick={() => selectAgentAll(a.id, a.skills)}
+                      >
+                        全选
+                      </button>
+                      <span className="bulk-divider" />
+                      <button
+                        type="button"
+                        className="bulk-pill-btn"
+                        onClick={() => unselectAgentAll(a.id, a.skills)}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                  <div className="adopt-skills-list">
+                    {a.skills.map((s) => {
+                      const k = keyOf(a.id, s.name);
+                      const isChecked = checked.has(k);
+                      return (
+                        <label
+                          key={s.name}
+                          className={`adopt-skill-item ${!s.valid ? 'disabled' : ''} ${isChecked ? 'checked' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={!s.valid}
+                            checked={isChecked}
+                            onChange={() => toggle(k)}
+                          />
+                          <div className="adopt-skill-info">
+                            <span className="adopt-skill-name bold">{s.name}</span>
+                            <span className="adopt-skill-path dim small mono" title={s.path}>
+                              {s.path}
+                            </span>
+                          </div>
+                          <div className="adopt-skill-status">
+                            {s.inStore && <span className="badge-warn">仓库已存同名</span>}
+                            {!s.valid && <span className="badge-error">名称非法</span>}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+          )}
+        </>
       )}
 
       {report && (

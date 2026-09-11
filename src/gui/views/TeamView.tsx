@@ -158,13 +158,46 @@ export function TeamView({ reload, toast }: Props) {
               </>
             )}
           </div>
+          <div className="input-hint" style={{ marginTop: 8 }}>
+            <span>快捷填入：</span>
+            <button
+              type="button"
+              className="bulk-pill-btn"
+              onClick={() => {
+                const defaultPath = './.skillpot.yaml';
+                setFile(defaultPath);
+                localStorage.setItem(FILE_KEY, defaultPath);
+                runInspect(defaultPath);
+              }}
+            >
+              使用工作区默认 (./.skillpot.yaml)
+            </button>
+          </div>
         </div>
       </div>
 
       {!report ? null : (
         <>
+          <div className="doctor-stat-bar" style={{ marginTop: 14 }}>
+            <span className="stat-label">清单比对概览：</span>
+            <span className="stat-pill ok">
+              {report.skills.filter((s) => s.checksumMatch === true).length} 吻合锁版本
+            </span>
+            {report.skills.filter((s) => s.checksumMatch === false).length > 0 && (
+              <span className="stat-pill warn">
+                {report.skills.filter((s) => s.checksumMatch === false).length} 偏离
+              </span>
+            )}
+            {report.skills.filter((s) => s.storeMissing).length > 0 && (
+              <span className="stat-pill error">
+                {report.skills.filter((s) => s.storeMissing).length} 缺失待装
+              </span>
+            )}
+            <span className="stat-fixable">（共 {report.skills.length} 项声明）</span>
+          </div>
+
           {report.warnings.length > 0 && (
-            <div className="lint-box" style={{ marginTop: 14 }}>
+            <div className="lint-box" style={{ marginTop: 10 }}>
               {report.warnings.map((w, i) => (
                 <div key={i} className="warn-text">
                   ⚠ {w}

@@ -16,6 +16,8 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
   const [results, setResults] = useState<UpdateResult[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [checkingSkill, setCheckingSkill] = useState<string | null>(null);
+  const [expandedDiff, setExpandedDiff] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 
   const q = query.trim().toLowerCase();
@@ -33,10 +35,35 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
       });
       setResults(r.results);
       await reload();
+      toast(`已检查 ${r.results.length} 个 Git 技能`);
     } catch (e) {
       toast((e as Error).message, true);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const checkOne = async (skill: string) => {
+    if (checkingSkill || busy) return;
+    setCheckingSkill(skill);
+    try {
+      const r = await api<{ results: UpdateResult[] }>('/api/update', {
+        method: 'POST',
+        body: { skill, check: true },
+      });
+      const updated = r.results.find((x) => x.skill === skill);
+      if (updated) {
+        setResults((prev) => {
+          if (!prev) return [updated];
+          const exists = prev.some((p) => p.skill === skill);
+          return exists ? prev.map((p) => (p.skill === skill ? updated : p)) : [...prev, updated];
+        });
+      }
+      toast(`${skill} 检查完成：${updated ? UPDATE_STATUS_LABEL[updated.status] : '无变更'}`);
+    } catch (e) {
+      toast((e as Error).message, true);
+    } finally {
+      setCheckingSkill(null);
     }
   };
 
@@ -60,8 +87,36 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
     }
   };
 
+  const applyAllOutdated = async () => {
+    if (updating || busy) return;
+    const targets = (results ?? []).filter((r) => r.status === 'outdated');
+    if (!targets.length) return;
+    setUpdating('ALL');
+    let successCount = 0;
+    try {
+      for (const t of targets) {
+        const r = await api<{ results: UpdateResult[] }>('/api/update', {
+          method: 'POST',
+          body: { skill: t.skill, check: false },
+        });
+        setResults((prev) =>
+          prev ? prev.map((p) => r.results.find((x) => x.skill === t.skill) ?? p) : r.results,
+        );
+        successCount++;
+      }
+      toast(`成功批量更新 ${successCount} 个技能`);
+      await reload();
+    } catch (e) {
+      toast((e as Error).message, true);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const statusOf = (name: string): UpdateResult | undefined =>
     results?.find((r) => r.skill === name);
+
+  const outdatedCount = (results ?? []).filter((r) => r.status === 'outdated').length;
 
   if (!skills.length) {
     return (
@@ -81,9 +136,20 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
             检查 Git 来源的技能远端提交，原位拉取更新（软链接指向保持不变，无需重新关联）
           </div>
         </div>
-        <button className="btn small-btn primary" onClick={checkAll} disabled={busy}>
-          {busy ? '检查中…（拉取远端）' : '检查更新（Git 来源）'}
-        </button>
+        <div className="doctor-actions">
+          {outdatedCount > 0 && (
+            <button
+              className="btn small-btn primary"
+              onClick={applyAllOutdated}
+              disabled={updating !== null || busy}
+            >
+              {updating === 'ALL' ? '全部更新中…' : `全部更新 (${outdatedCount} 项可更新)`}
+            </button>
+          )}
+          <button className="btn small-btn subtle" onClick={checkAll} disabled={busy || updating !== null}>
+            {busy ? '检查中…（拉取远端）' : '检查全部（Git 来源）'}
+          </button>
+        </div>
       </div>
 
       {skills.length > 0 && (
@@ -96,6 +162,7 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
           />
           <span className="dim small">
             {filtered.length}/{skills.length} 项
+            {outdatedCount > 0 && ` · ${outdatedCount} 项可更新`}
           </span>
         </div>
       )}
@@ -107,13 +174,14 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
               <th className="skill-col">Skill 技能</th>
               <th>来源与类型</th>
               <th>更新状态</th>
-              <th style={{ width: 100, textAlign: 'center' }}>操作</th>
+              <th style={{ width: 140, textAlign: 'center' }}>操作</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((s) => {
               const st = statusOf(s.name);
               const git = isGitSource(s.source);
+              const isDiffExpanded = expandedDiff === s.name;
               return (
                 <tr key={s.name}>
                   <td className="skill-name link" onClick={() => onOpenDetail(s.name)}>
@@ -138,7 +206,11 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
                         <span className="dim small">未检查</span>
                       )}
                       {st?.diff && (
-                        <span className="diff-badges">
+                        <span
+                          className="diff-badges clickable"
+                          onClick={() => setExpandedDiff((v) => (v === s.name ? null : s.name))}
+                          title="点击查看变动文件明细"
+                        >
                           {st.diff.added.length > 0 && (
                             <span className="diff-pill add">+{st.diff.added.length}</span>
                           )}
@@ -148,21 +220,47 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
                           {st.diff.removed.length > 0 && (
                             <span className="diff-pill del">-{st.diff.removed.length}</span>
                           )}
+                          <span className="diff-expand-arrow">{isDiffExpanded ? '▲' : '▼'}</span>
                         </span>
                       )}
                       {st?.detail && <span className="dim small"> ({st.detail})</span>}
                     </div>
+                    {isDiffExpanded && st?.diff && (
+                      <div className="update-diff-drawer">
+                        {st.diff.added.map((f) => (
+                          <div key={f} className="diff-file-item add">+ {f}</div>
+                        ))}
+                        {st.diff.modified.map((f) => (
+                          <div key={f} className="diff-file-item mod">~ {f}</div>
+                        ))}
+                        {st.diff.removed.map((f) => (
+                          <div key={f} className="diff-file-item del">- {f}</div>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     {git ? (
-                      <button
-                        className={`btn small-btn ${st?.status === 'outdated' ? 'primary' : 'subtle'}`}
-                        disabled={updating !== null || st?.status !== 'outdated'}
-                        onClick={() => apply(s.name)}
-                        title={st?.status === 'outdated' ? '原位拉取并更新' : '当前无待更新内容'}
-                      >
-                        {updating === s.name ? '更新中…' : '更新'}
-                      </button>
+                      <div className="row-action-group">
+                        <button
+                          className="btn small-btn subtle"
+                          disabled={checkingSkill === s.name || updating !== null}
+                          onClick={() => checkOne(s.name)}
+                          title="单独检查此技能的远端更新"
+                        >
+                          {checkingSkill === s.name ? '…' : '检查'}
+                        </button>
+                        {st?.status === 'outdated' && (
+                          <button
+                            className="btn small-btn primary"
+                            disabled={updating !== null}
+                            onClick={() => apply(s.name)}
+                            title="原位拉取并更新"
+                          >
+                            {updating === s.name ? '…' : '更新'}
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <span className="dim small">本地跳过</span>
                     )}

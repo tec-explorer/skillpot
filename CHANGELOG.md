@@ -3,6 +3,44 @@
 所有显著变更记录于此。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [SemVer](https://semver.org/lang/zh-CN/)。
 
+## [0.20.3] - 2026-09-11
+
+Web GUI 深度自测优化与高级交互能力全面落地：视口感知防溢出 Tooltip、行级全开全停与响应式状态绑定、弹窗内部就地启停与定向安装闭环、多模块深度跳转与环境缓存刷新。
+
+### Added
+- **开关矩阵高级交互 (`src/gui/views/MatrixView.tsx`, `src/core/gui-server.ts`)**：
+  - 智能防溢出 Tooltip：视口边界检测，底部空间不足时自动向上反转 (`.flip-up`)，右侧边界水平自动约束 (`horizontal clamp`)。
+  - 实时响应式状态绑定：Tooltip 直接读取全局动态矩阵单元格，避免数据陈旧。
+  - 行级批量启停：技能名称旁提供 `全开` / `全停` 快速操作，后端扩展 `POST /api/bulk` 支持 `{ skill, enable }` 批量控制。
+  - Agent 维度筛选下拉框：支持切换「全部 Agent / 单个 Agent」过滤视图。
+  - 搜索空状态美化与一键清空。
+- **弹窗交互闭环 (`src/gui/views/DetailModal.tsx`, `src/gui/views/MarketPreviewModal.tsx`)**：
+  - 全局 Esc 快捷键关闭监听。
+  - 详情弹窗 Agent 适配评估卡片内直接集成 Toggle Switch 开关，就地完成启停操作。
+  - 市场预览弹窗新增目标 Agent 勾选 Chips，传递 `for: string[]` 一步到位完成安装并定向开放。
+- **技能维护与体检联动 (`src/gui/views/UpdateView.tsx`, `src/gui/views/DoctorView.tsx`, `src/gui/views/AdoptView.tsx`)**：
+  - 技能维护单项「检查」与「更新」，顶部批量更新主按钮，diff 变更文件展开抽屉。
+  - 体检孤儿未受管问题一键「前往收编 ↗」无缝跳转。
+  - 收编页面 100% 健全卡片展示，消除无待收编时的空白感。
+- **全局环境与服务端增强 (`src/gui/App.tsx`, `src/core/gui-server.ts`)**：
+  - 顶栏新增「⟳ 刷新环境」按钮与 `POST /api/redetect` 接口，强制清除探测缓存并立即重新探测。
+  - 顶栏「系统体检」Tab 动态异常计数红标徽章。
+
+## [0.20.2] - 2026-09-11
+
+### Fixed
+- **滚动体验再进化：彻底消除全功能列表与弹窗多重嵌套滚动条 (`src/gui/App.tsx`, `src/gui/style.css`, `src/gui/views/*.tsx`)**：
+  - 视口根级锁定：固定 `html, body` 与 `#root` 视口高度，根绝浏览器外层双滚动条。
+  - 视图双滚动架构：分离 `matrix-mode`（内嵌表格单滚动）与 `panel-mode`（页面级单滚动），彻底去除列表内部与页面的多重套娃滚动。
+  - 弹窗单层平滑滚动：取消文件列表与 Markdown 渲染区的硬性高度限制，由弹窗 Body 统一平滑滚动。
+
+## [0.20.1] - 2026-09-11
+
+### Fixed
+- **修复开关矩阵滚动截断底栏与双滚动条缺陷 (`src/gui/views/MatrixView.tsx`, `src/gui/style.css`)**：
+  - 将加载更多控制区与图例吸附至 `.matrix-card` 内部底部，无论展开多少项永不被压扁或挤出。
+  - 增加「展开全部」与「收起」控制，重构分类紧凑图例。
+
 ## [0.20.0] - 2026-09-11
 
 跨 Agent 技能适用性治理与 Web 控制台现代交互体验升级：轻量启发式 Token 估算、运行环境与依赖探测、渠道防泛洪评估、以及 Web GUI 全矩阵视觉与排版重构。

@@ -219,24 +219,54 @@ export async function handleApiRequest(
       return { status: 200, body: { ok: true, message: `已卸载 ${b.skill}` } };
     }
     if (method === 'POST' && pathname === '/api/bulk') {
-      // 整列批量启停：对该 Agent 下的全部 skill 逐个 enable/disable
-      const b = (body ?? {}) as { agent?: unknown; enable?: unknown };
-      if (typeof b.agent !== 'string' || typeof b.enable !== 'boolean') {
-        return { status: 400, body: { error: '需要 agent 字符串与 enable 布尔字段' } };
+      const b = (body ?? {}) as { agent?: unknown; skill?: unknown; enable?: unknown };
+      if (typeof b.enable !== 'boolean') {
+        return { status: 400, body: { error: '需要 enable 布尔字段' } };
       }
-      const names = Object.keys(loadConfig().skills).sort();
-      const changed: string[] = [];
-      const skipped: { skill: string; reason: string }[] = [];
-      for (const n of names) {
-        try {
-          const r = b.enable ? enableSkill(n, [b.agent]) : disableSkill(n, [b.agent]);
-          if (r.linked.length) changed.push(n);
-          else if (r.skipped.length) skipped.push({ skill: n, reason: r.skipped[0].reason });
-        } catch (e) {
-          skipped.push({ skill: n, reason: e instanceof Error ? e.message : String(e) });
+      if (typeof b.agent === 'string') {
+        // 整列批量启停：对该 Agent 下的全部 skill 逐个 enable/disable
+        const names = Object.keys(loadConfig().skills).sort();
+        const changed: string[] = [];
+        const skipped: { skill: string; reason: string }[] = [];
+        for (const n of names) {
+          try {
+            const r = b.enable ? enableSkill(n, [b.agent]) : disableSkill(n, [b.agent]);
+            if (r.linked.length) changed.push(n);
+            else if (r.skipped.length) skipped.push({ skill: n, reason: r.skipped[0].reason });
+          } catch (e) {
+            skipped.push({ skill: n, reason: e instanceof Error ? e.message : String(e) });
+          }
         }
+        return { status: 200, body: { changed, skipped } };
       }
-      return { status: 200, body: { changed, skipped } };
+      if (typeof b.skill === 'string') {
+        // 整行批量启停：对该 Skill 的全部已安装具体 Agent enable/disable
+        const agents = cachedAgents().filter((a) => a.installed && a.kind !== 'channel');
+        const targetIds = agents.map((a) => a.id);
+        const r = b.enable ? enableSkill(b.skill, targetIds) : disableSkill(b.skill, targetIds);
+        return {
+          status: 200,
+          body: {
+            changed: r.linked,
+            skipped: r.skipped.map((s) => ({ skill: b.skill as string, agent: s.agent, reason: s.reason })),
+          },
+        };
+      }
+      return { status: 400, body: { error: '需要 agent 或 skill 字段与 enable 布尔字段' } };
+    }
+    if (method === 'POST' && pathname === '/api/redetect') {
+      resetGuiCache();
+      const agents = cachedAgents();
+      const matrix = deriveMatrix(agents);
+      matrix.advisor = buildMatrixSuitability(matrix.skills, matrix.agents);
+      return {
+        status: 200,
+        body: {
+          version: VERSION,
+          skills: loadConfig().skills,
+          matrix,
+        },
+      };
     }
     if (method === 'GET' && pathname === '/api/team/inspect') {
       const file = query.get('file');

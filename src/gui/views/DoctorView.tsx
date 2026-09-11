@@ -23,10 +23,12 @@ const FIX_HINT: Record<NonNullable<Issue['fix']>, string> = {
 export function DoctorView({
   rev,
   toast,
+  onNavigateTab,
 }: {
   /** SSE 变更序号：变化时重新体检（保留本地状态，不重挂载） */
   rev: number;
   toast: (text: string, bad?: boolean) => void;
+  onNavigateTab?: (tab: 'matrix' | 'doctor' | 'adopt' | 'add' | 'market' | 'update' | 'team' | 'policy') => void;
 }) {
   const [issues, setIssues] = useState<Issue[] | null>(null);
   const [fixing, setFixing] = useState(false);
@@ -110,6 +112,16 @@ export function DoctorView({
                 <span className={`badge badge-${i.level}`}>{LEVEL_LABEL[i.level]}</span>
                 <span className="issue-msg">{i.message}</span>
                 {i.fix && <span className="fix-hint">（{FIX_HINT[i.fix]}）</span>}
+                {i.fix === 'adopt' && onNavigateTab && (
+                  <button
+                    type="button"
+                    className="btn small-btn subtle issue-action-btn"
+                    onClick={() => onNavigateTab('adopt')}
+                    title="前往收编页面纳管此技能"
+                  >
+                    前往收编 ↗
+                  </button>
+                )}
               </li>
             ))}
           </ul>

@@ -170,6 +170,30 @@ describe('handleApiRequest', () => {
     expect(off.status).toBe(200);
     expect(loadConfig().skills['demo-skill'].expose['claude-code']).toBe(false);
 
+    // 行级批量开关: 对指定 skill 开放所有安装的 Agent
+    const rowOn = (await handleApiRequest(
+      'POST',
+      '/api/bulk',
+      NO_QUERY,
+      { skill: 'demo-skill', enable: true },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(rowOn.status).toBe(200);
+    expect((rowOn.body as { changed: string[] }).changed.length).toBeGreaterThan(0);
+    expect(loadConfig().skills['demo-skill'].expose['claude-code']).toBe(true);
+
+    const rowOff = (await handleApiRequest(
+      'POST',
+      '/api/bulk',
+      NO_QUERY,
+      { skill: 'demo-skill', enable: false },
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(rowOff.status).toBe(200);
+    expect(loadConfig().skills['demo-skill'].expose['claude-code']).toBe(false);
+
     const bad = (await handleApiRequest(
       'POST',
       '/api/bulk',
@@ -179,6 +203,22 @@ describe('handleApiRequest', () => {
       TOKEN,
     ))!;
     expect(bad.status).toBe(400);
+  });
+
+  it('POST /api/redetect 清除缓存并重新探测返回最新矩阵', async () => {
+    setupSkill();
+    const res = (await handleApiRequest(
+      'POST',
+      '/api/redetect',
+      NO_QUERY,
+      {},
+      TOKEN,
+      TOKEN,
+    ))!;
+    expect(res.status).toBe(200);
+    const body = res.body as { version: string; matrix: { skills: string[]; agents: unknown[] } };
+    expect(body.matrix.skills).toContain('demo-skill');
+    expect(body.matrix.agents.length).toBeGreaterThan(0);
   });
 
   it('GET /api/adopt 只列已安装 Agent 的可收编真实目录并标注 inStore', async () => {

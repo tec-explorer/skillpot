@@ -35,6 +35,8 @@ export function App() {
   const [state, setState] = useState<StateResp | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [detailSkill, setDetailSkill] = useState<string | null>(null);
+  const [redetecting, setRedetecting] = useState(false);
+  const [doctorCount, setDoctorCount] = useState<number | null>(null);
   // SSE 变更序号：任一写操作(含其他标签页)成功后 +1,自取数据的视图以 key 重挂载重新拉取
   const [rev, setRev] = useState(0);
   const debounceRef = useRef<number | undefined>(undefined);
@@ -55,6 +57,12 @@ export function App() {
     reload();
   }, [reload]);
 
+  useEffect(() => {
+    api<{ issues: unknown[] }>('/api/doctor')
+      .then((r) => setDoctorCount(r.issues.length))
+      .catch(() => {});
+  }, [rev]);
+
   // 订阅服务端变更事件：150ms 去抖后刷新,保证多标签页/外部 CLI 改动后界面自动同步
   useEffect(() => {
     const t = getToken();
@@ -68,6 +76,20 @@ export function App() {
     };
     return () => es.close();
   }, [reload]);
+
+  const redetect = async () => {
+    if (redetecting) return;
+    setRedetecting(true);
+    try {
+      const fresh = await api<StateResp>('/api/redetect', { method: 'POST' });
+      setState(fresh);
+      toast('已强制刷新 Agent 探针并重新加载最新环境');
+    } catch (e) {
+      toast((e as Error).message, true);
+    } finally {
+      setRedetecting(false);
+    }
+  };
 
   const skillCount = state ? Object.keys(state.skills).length : 0;
 
@@ -84,11 +106,25 @@ export function App() {
               className={tab === t.id ? 'tab active' : 'tab'}
               onClick={() => setTab(t.id)}
             >
-              {t.label}
+              <span>{t.label}</span>
+              {t.id === 'doctor' && doctorCount !== null && doctorCount > 0 && (
+                <span className="tab-badge warn">{doctorCount}</span>
+              )}
             </button>
           ))}
         </nav>
-        <div className="meta">{skillCount} 个 skill · 中央仓库 ~/.skillpot</div>
+        <div className="meta">
+          <button
+            type="button"
+            className="btn-redetect"
+            onClick={redetect}
+            disabled={redetecting}
+            title="重新探测本机 Agent 安装状态与环境指纹（清空 60s 缓存）"
+          >
+            {redetecting ? '探测中…' : '⟳ 刷新环境'}
+          </button>
+          <span>{skillCount} 个 skill · 中央仓库 ~/.skillpot</span>
+        </div>
       </header>
 
       <main className={`content ${tab === 'matrix' ? 'matrix-mode' : 'panel-mode'}`}>
@@ -102,13 +138,24 @@ export function App() {
             onOpenDetail={setDetailSkill}
           />
         ) : tab === 'doctor' ? (
-          <DoctorView rev={rev} toast={toast} />
+          <DoctorView rev={rev} toast={toast} onNavigateTab={setTab} />
         ) : tab === 'adopt' ? (
           <AdoptView rev={rev} reload={reload} toast={toast} />
         ) : tab === 'add' ? (
-          <AddView agents={state.matrix.agents} reload={reload} toast={toast} />
+          <AddView
+            agents={state.matrix.agents}
+            reload={reload}
+            toast={toast}
+            onOpenDetail={setDetailSkill}
+            onNavigateTab={setTab}
+          />
         ) : tab === 'market' ? (
-          <MarketView rev={rev} reload={reload} toast={toast} />
+          <MarketView
+            rev={rev}
+            reload={reload}
+            toast={toast}
+            agents={state.matrix.agents}
+          />
         ) : tab === 'update' ? (
           <UpdateView
             skills={Object.entries(state.skills)
@@ -125,9 +172,10 @@ export function App() {
         )}
       </main>
 
-      {detailSkill && (
+      {detailSkill && state && (
         <DetailModal
           skill={detailSkill}
+          state={state}
           onClose={() => setDetailSkill(null)}
           reload={reload}
           toast={toast}

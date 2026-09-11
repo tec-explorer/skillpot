@@ -5,6 +5,7 @@ import { AddResult, MarketSkill, MarketSkillPreview } from '../types';
 interface Props {
   skill: MarketSkill;
   url: string;
+  agents?: { id: string; name: string; installed: boolean }[];
   onClose: () => void;
   onInstalled: (subdir: string) => void;
   reload: () => Promise<void>;
@@ -14,6 +15,7 @@ interface Props {
 export function MarketPreviewModal({
   skill,
   url,
+  agents = [],
   onClose,
   onInstalled,
   reload,
@@ -22,6 +24,15 @@ export function MarketPreviewModal({
   const [preview, setPreview] = useState<MarketSkillPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState(false);
+  const [pickedAgents, setPickedAgents] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     setLoading(true);
@@ -38,15 +49,29 @@ export function MarketPreviewModal({
       });
   }, [url, skill.subdir, toast, onClose]);
 
+  const toggleAgent = (id: string) => {
+    setPickedAgents((p) => {
+      const next = new Set(p);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const install = async () => {
     if (installing) return;
     setInstalling(true);
     try {
       const r = await api<AddResult>('/api/market/install', {
         method: 'POST',
-        body: { url, subdir: skill.subdir },
+        body: {
+          url,
+          subdir: skill.subdir,
+          for: pickedAgents.size > 0 ? [...pickedAgents] : undefined,
+        },
       });
-      toast(`已安装 ${r.name}`);
+      const enabledMsg = r.enabled.length > 0 ? `，并已开放给 ${r.enabled.join(', ')}` : '';
+      toast(`已安装 ${r.name}${enabledMsg}`);
       onInstalled(skill.subdir);
       if (preview) {
         setPreview({ ...preview, installed: true });
@@ -86,6 +111,52 @@ export function MarketPreviewModal({
             <div className="loading" style={{ margin: '24px 0' }}>加载技能详情与提示词…</div>
           ) : (
             <>
+              {!preview.installed && !skill.installed && agents.length > 0 && (
+                <div className="market-install-agents-box">
+                  <div className="form-label-row" style={{ marginBottom: 6 }}>
+                    <span className="dim small bold">安装后立即开放给 Agent（可选）：</span>
+                    <div className="agent-picker-quick">
+                      <button
+                        type="button"
+                        className="bulk-pill-btn"
+                        onClick={() =>
+                          setPickedAgents(
+                            new Set(agents.filter((a) => a.installed && a.id !== 'broadcast').map((a) => a.id)),
+                          )
+                        }
+                      >
+                        全选已安装
+                      </button>
+                      <span className="bulk-divider" />
+                      <button
+                        type="button"
+                        className="bulk-pill-btn"
+                        onClick={() => setPickedAgents(new Set())}
+                      >
+                        清空
+                      </button>
+                    </div>
+                  </div>
+                  <div className="agent-chips-grid mini" style={{ marginBottom: 12 }}>
+                    {agents
+                      .filter((a) => a.installed)
+                      .map((a) => (
+                        <label
+                          key={a.id}
+                          className={`agent-chip mini ${pickedAgents.has(a.id) ? 'checked' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={pickedAgents.has(a.id)}
+                            onChange={() => toggleAgent(a.id)}
+                          />
+                          <span className="agent-chip-name">{a.name}</span>
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               {preview.description && <p className="preview-desc">{preview.description}</p>}
 
               <div style={{ margin: '12px 0 8px' }}>

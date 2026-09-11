@@ -57,16 +57,16 @@ function cellTitle(cs: CellState): string {
 interface TooltipState {
   x: number;
   y: number;
+  isBelow: boolean;
   skill: string;
-  agentName: string;
-  cellStatusText: string;
-  analysis?: SuitabilityAnalysis;
+  agentId: string;
 }
 
 export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [agentFilter, setAgentFilter] = useState<string>('all');
   const [visible, setVisible] = useState(20);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const { matrix } = state;
@@ -75,6 +75,10 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
     const q = query.trim().toLowerCase();
     return matrix.skills.filter((s) => {
       if (q && !s.toLowerCase().includes(q)) return false;
+      if (agentFilter !== 'all') {
+        const c = matrix.cells[s]?.[agentFilter];
+        if (!c?.enabled) return false;
+      }
       if (statusFilter === 'all') return true;
       if (statusFilter === 'advisor') {
         return matrix.agents.some((a) => {
@@ -90,7 +94,7 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           ((c.enabled && !c.actual) || (c.enabled && c.actual && !c.managed) || (!c.enabled && c.managed)),
       );
     });
-  }, [matrix, query, statusFilter]);
+  }, [matrix, query, statusFilter, agentFilter]);
 
   const visibleSkills = useMemo(
     () => filteredSkills.slice(0, visible),
@@ -114,6 +118,27 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
       );
       toast(
         `已${verb} ${r.changed.length} 个 skill${r.skipped.length ? `，跳过 ${r.skipped.length} 个` : ''}`,
+        r.changed.length === 0,
+      );
+      await reload();
+    } catch (e) {
+      toast((e as Error).message, true);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const bulkRow = async (skill: string, enable: boolean) => {
+    if (busy) return;
+    const verb = enable ? '开放' : '关闭';
+    setBusy(`row:${skill}`);
+    try {
+      const r = await api<{ changed: string[]; skipped: { agent: string; reason: string }[] }>(
+        '/api/bulk',
+        { method: 'POST', body: { skill, enable } },
+      );
+      toast(
+        `已对所有已安装 Agent ${verb} ${skill}（${r.changed.length} 处变更${r.skipped.length ? `，跳过 ${r.skipped.length} 处` : ''}）`,
         r.changed.length === 0,
       );
       await reload();
@@ -166,6 +191,25 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
             setVisible(20);
           }}
         />
+        <select
+          className="agent-select"
+          value={agentFilter}
+          onChange={(e) => {
+            setAgentFilter(e.target.value);
+            setVisible(20);
+          }}
+          title="按特定目标 Agent 筛选已开启的技能"
+        >
+          <option value="all">全部目标 Agent</option>
+          {matrix.agents.map((a) => {
+            const count = matrix.skills.filter((s) => matrix.cells[s]?.[a.id]?.enabled).length;
+            return (
+              <option key={a.id} value={a.id}>
+                {a.name}（已开 {count}）
+              </option>
+            );
+          })}
+        </select>
         <div className="segment">
           {FILTERS.map((f) => (
             <button
@@ -186,110 +230,158 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
       </div>
       <div className="matrix-card">
         <div className="matrix-scroll-wrap">
-          <table className="matrix">
-            <thead>
-              <tr>
-                <th className="skill-th">Skill 技能</th>
-                {matrix.agents.map((a) => (
-                  <th
-                    key={a.id}
-                    className={[
-                      'agent-th',
-                      a.installed ? '' : 'agent-off',
-                      a.kind === 'channel' ? 'agent-channel' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    title={`${a.skillsDir}（验证等级：${VERIFY_LABEL[a.verify]}）`}
-                  >
-                    <div className="agent-th-inner">
-                      <div className="agent-th-title-row">
-                        <span className="agent-th-name" title={a.name}>
-                          {a.name}
-                        </span>
-                        {a.kind === 'channel' ? (
-                          <span className="th-tag channel">广播</span>
-                        ) : !a.installed ? (
-                          <span className="th-tag off">未装</span>
-                        ) : a.verify === 'unverified' ? (
-                          <span className="th-tag unverified">待验</span>
-                        ) : null}
-                      </div>
-                      <div className="agent-th-bulk">
-                        <button
-                          className="bulk-pill-btn"
-                          title={`对 ${a.name} 开放全部 skill`}
-                          disabled={busy !== null}
-                          onClick={() => bulk(a.id, true)}
-                        >
-                          全开
-                        </button>
-                        <span className="bulk-divider" />
-                        <button
-                          className="bulk-pill-btn"
-                          title={`对 ${a.name} 关闭全部 skill`}
-                          disabled={busy !== null}
-                          onClick={() => bulk(a.id, false)}
-                        >
-                          全停
-                        </button>
-                      </div>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleSkills.map((s) => (
-                <tr key={s} className="matrix-row">
-                  <td
-                    className="skill-cell"
-                    title={state.skills[s]?.source ?? ''}
-                    onClick={() => onOpenDetail(s)}
-                  >
-                    <div className="skill-cell-inner">
-                      <span className="skill-name-label">{s}</span>
-                      <span className="skill-info-tag">详情 ↗</span>
-                    </div>
-                  </td>
-                  {matrix.agents.map((a) => {
-                    const cs = matrix.cells[s]?.[a.id];
-                    if (!cs) return <td key={a.id} className="cell-td empty-cell">·</td>;
-                    const adv = matrix.advisor?.[s]?.[a.id];
-                    const statusKind = cellClass(cs);
-                    return (
-                      <td
-                        key={a.id}
-                        className={`cell-td ${a.kind === 'channel' ? 'agent-channel-cell' : ''} ${busy === `${s}@${a.id}` ? 'busy' : ''}`}
-                        onClick={() => toggle(s, a.id)}
-                        onMouseEnter={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setTooltip({
-                            x: rect.left + rect.width / 2,
-                            y: rect.top,
-                            skill: s,
-                            agentName: a.name,
-                            cellStatusText: cellTitle(cs),
-                            analysis: adv,
-                          });
-                        }}
-                        onMouseLeave={() => setTooltip(null)}
-                      >
-                        <div className="token-wrapper">
-                          <span className={`token-badge ${statusKind}`}>
-                            {statusKind !== 'off' ? cellGlyph(cs) : null}
+          {filteredSkills.length === 0 ? (
+            <div className="matrix-empty-search">
+              <div className="empty-search-icon">🔍</div>
+              <div className="empty-search-title">未找到匹配的 Skill</div>
+              <div className="dim small">尝试更换搜索词、切回「全部」状态或调整目标 Agent</div>
+              <button
+                className="btn small-btn subtle"
+                onClick={() => {
+                  setQuery('');
+                  setStatusFilter('all');
+                  setAgentFilter('all');
+                }}
+                style={{ marginTop: 12 }}
+              >
+                重置所有筛选
+              </button>
+            </div>
+          ) : (
+            <table className="matrix">
+              <thead>
+                <tr>
+                  <th className="skill-th">Skill 技能</th>
+                  {matrix.agents.map((a) => (
+                    <th
+                      key={a.id}
+                      className={[
+                        'agent-th',
+                        a.installed ? '' : 'agent-off',
+                        a.kind === 'channel' ? 'agent-channel' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      title={`${a.skillsDir}（验证等级：${VERIFY_LABEL[a.verify]}）`}
+                    >
+                      <div className="agent-th-inner">
+                        <div className="agent-th-title-row">
+                          <span className="agent-th-name" title={a.name}>
+                            {a.name}
                           </span>
-                          {adv && adv.level !== 'neutral' && (
-                            <span className={`advisor-badge-dot ${adv.level}`} />
-                          )}
+                          {a.kind === 'channel' ? (
+                            <span className="th-tag channel">广播</span>
+                          ) : !a.installed ? (
+                            <span className="th-tag off">未装</span>
+                          ) : a.verify === 'unverified' ? (
+                            <span className="th-tag unverified">待验</span>
+                          ) : null}
                         </div>
-                      </td>
-                    );
-                  })}
+                        <div className="agent-th-bulk">
+                          <button
+                            className="bulk-pill-btn"
+                            title={`对 ${a.name} 开放全部 skill`}
+                            disabled={busy !== null}
+                            onClick={() => bulk(a.id, true)}
+                          >
+                            全开
+                          </button>
+                          <span className="bulk-divider" />
+                          <button
+                            className="bulk-pill-btn"
+                            title={`对 ${a.name} 关闭全部 skill`}
+                            disabled={busy !== null}
+                            onClick={() => bulk(a.id, false)}
+                          >
+                            全停
+                          </button>
+                        </div>
+                      </div>
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleSkills.map((s) => (
+                  <tr key={s} className="matrix-row">
+                    <td
+                      className="skill-cell"
+                      title={state.skills[s]?.source ?? ''}
+                      onClick={() => onOpenDetail(s)}
+                    >
+                      <div className="skill-cell-inner">
+                        <span className="skill-name-label">{s}</span>
+                        <div className="skill-row-actions">
+                          <button
+                            type="button"
+                            className="bulk-mini-btn"
+                            title={`对所有已安装 Agent 开启 ${s}`}
+                            disabled={busy !== null}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              bulkRow(s, true);
+                            }}
+                          >
+                            全开
+                          </button>
+                          <span className="bulk-divider mini" />
+                          <button
+                            type="button"
+                            className="bulk-mini-btn"
+                            title={`对所有 Agent 关闭 ${s}`}
+                            disabled={busy !== null}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              bulkRow(s, false);
+                            }}
+                          >
+                            全停
+                          </button>
+                          <span className="skill-info-tag">详情 ↗</span>
+                        </div>
+                      </div>
+                    </td>
+                    {matrix.agents.map((a) => {
+                      const cs = matrix.cells[s]?.[a.id];
+                      if (!cs) return <td key={a.id} className="cell-td empty-cell">·</td>;
+                      const adv = matrix.advisor?.[s]?.[a.id];
+                      const statusKind = cellClass(cs);
+                      return (
+                        <td
+                          key={a.id}
+                          className={`cell-td ${a.kind === 'channel' ? 'agent-channel-cell' : ''} ${busy === `${s}@${a.id}` ? 'busy' : ''}`}
+                          onClick={() => toggle(s, a.id)}
+                          onMouseEnter={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const isBelow = rect.top < 230;
+                            const x = Math.max(170, Math.min(window.innerWidth - 170, rect.left + rect.width / 2));
+                            const y = isBelow ? rect.bottom + 8 : rect.top - 8;
+                            setTooltip({
+                              x,
+                              y,
+                              isBelow,
+                              skill: s,
+                              agentId: a.id,
+                            });
+                          }}
+                          onMouseLeave={() => setTooltip(null)}
+                        >
+                          <div className="token-wrapper">
+                            <span className={`token-badge ${statusKind}`}>
+                              {statusKind !== 'off' ? cellGlyph(cs) : null}
+                            </span>
+                            {adv && adv.level !== 'neutral' && (
+                              <span className={`advisor-badge-dot ${adv.level}`} />
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
         <div className="matrix-card-footer">
           <div className="matrix-footer-left">
@@ -340,82 +432,86 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           </div>
         </div>
       </div>
-      {filteredSkills.length === 0 && (
-        <p className="dim" style={{ textAlign: 'center', marginTop: 16 }}>
-          没有匹配的 skill（换个关键词或切回「全部」）。
-        </p>
-      )}
-      {tooltip && (
+      {tooltip && matrix.cells[tooltip.skill]?.[tooltip.agentId] && (
         <div
-          className="advisor-tooltip"
+          className={`advisor-tooltip ${tooltip.isBelow ? 'flip-down' : 'flip-up'}`}
           style={{
             left: `${tooltip.x}px`,
             top: `${tooltip.y}px`,
           }}
         >
-          <div className="advisor-tooltip-head">
-            <span className="advisor-tooltip-target">
-              {tooltip.skill} → {tooltip.agentName}
-            </span>
-            {tooltip.analysis && (
-              <span className={`advisor-level-pill ${tooltip.analysis.level}`}>
-                {LEVEL_LABELS[tooltip.analysis.level] || tooltip.analysis.level} ({tooltip.analysis.score}分)
-              </span>
-            )}
-          </div>
-          <div className="advisor-tooltip-status">
-            状态：{tooltip.cellStatusText}
-          </div>
-          {tooltip.analysis && (
-            <>
-              <div className="advisor-tooltip-summary">
-                {tooltip.analysis.summary}
-              </div>
-              <div className="advisor-tooltip-meta">
-                <div className="advisor-tooltip-meta-item">
-                  <span>⚡ 预估：</span>
-                  <span>
-                    ~{tooltip.analysis.tokenCost.tokens} tokens (
-                    {tooltip.analysis.tokenCost.level === 'light'
-                      ? '轻量'
-                      : tooltip.analysis.tokenCost.level === 'moderate'
-                        ? '适中'
-                        : '较重'}
-                    )
+          {(() => {
+            const cs = matrix.cells[tooltip.skill][tooltip.agentId];
+            const adv = matrix.advisor?.[tooltip.skill]?.[tooltip.agentId];
+            const agent = matrix.agents.find((a) => a.id === tooltip.agentId);
+            return (
+              <>
+                <div className="advisor-tooltip-head">
+                  <span className="advisor-tooltip-target">
+                    {tooltip.skill} → {agent?.name ?? tooltip.agentId}
                   </span>
+                  {adv && (
+                    <span className={`advisor-level-pill ${adv.level}`}>
+                      {LEVEL_LABELS[adv.level] || adv.level} ({adv.score}分)
+                    </span>
+                  )}
                 </div>
-                {tooltip.analysis.dependencies.satisfied.length > 0 && (
-                  <div className="advisor-tooltip-meta-item">
-                    <span>✓ 就绪：</span>
-                    <span>{tooltip.analysis.dependencies.satisfied.slice(0, 3).join(', ')}</span>
-                  </div>
-                )}
-                {tooltip.analysis.dependencies.missing.length > 0 && (
-                  <div className="advisor-tooltip-meta-item" style={{ color: '#f87171' }}>
-                    <span>✗ 缺少：</span>
-                    <span>{tooltip.analysis.dependencies.missing.join(', ')}</span>
-                  </div>
-                )}
-              </div>
-              {(tooltip.analysis.reasons.pros.length > 0 ||
-                tooltip.analysis.reasons.risks.length > 0) && (
-                <div className="advisor-tooltip-reasons">
-                  {tooltip.analysis.reasons.pros.slice(0, 2).map((p, idx) => (
-                    <div key={`p-${idx}`} className="advisor-tooltip-reason pro">
-                      <span>•</span>
-                      <span>{p}</span>
-                    </div>
-                  ))}
-                  {tooltip.analysis.reasons.risks.slice(0, 2).map((r, idx) => (
-                    <div key={`r-${idx}`} className="advisor-tooltip-reason risk">
-                      <span>•</span>
-                      <span>{r}</span>
-                    </div>
-                  ))}
+                <div className="advisor-tooltip-status">
+                  状态：{cellTitle(cs)}
                 </div>
-              )}
-            </>
-          )}
+                {adv && (
+                  <>
+                    <div className="advisor-tooltip-summary">
+                      {adv.summary}
+                    </div>
+                    <div className="advisor-tooltip-meta">
+                      <div className="advisor-tooltip-meta-item">
+                        <span>⚡ 预估：</span>
+                        <span>
+                          ~{adv.tokenCost.tokens} tokens (
+                          {adv.tokenCost.level === 'light'
+                            ? '轻量'
+                            : adv.tokenCost.level === 'moderate'
+                              ? '适中'
+                              : '较重'}
+                          )
+                        </span>
+                      </div>
+                      {adv.dependencies.satisfied.length > 0 && (
+                        <div className="advisor-tooltip-meta-item">
+                          <span>✓ 就绪：</span>
+                          <span>{adv.dependencies.satisfied.slice(0, 3).join(', ')}</span>
+                        </div>
+                      )}
+                      {adv.dependencies.missing.length > 0 && (
+                        <div className="advisor-tooltip-meta-item" style={{ color: '#f87171' }}>
+                          <span>✗ 缺少：</span>
+                          <span>{adv.dependencies.missing.join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+                    {(adv.reasons.pros.length > 0 ||
+                      adv.reasons.risks.length > 0) && (
+                      <div className="advisor-tooltip-reasons">
+                        {adv.reasons.pros.slice(0, 2).map((p, idx) => (
+                          <div key={`p-${idx}`} className="advisor-tooltip-reason pro">
+                            <span>•</span>
+                            <span>{p}</span>
+                          </div>
+                        ))}
+                        {adv.reasons.risks.slice(0, 2).map((r, idx) => (
+                          <div key={`r-${idx}`} className="advisor-tooltip-reason risk">
+                            <span>•</span>
+                            <span>{r}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

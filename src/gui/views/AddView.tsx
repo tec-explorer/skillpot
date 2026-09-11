@@ -7,9 +7,11 @@ interface Props {
   agents: { id: string; name: string; installed: boolean }[];
   reload: () => Promise<void>;
   toast: (text: string, bad?: boolean) => void;
+  onOpenDetail?: (skill: string) => void;
+  onNavigateTab?: (tab: 'matrix' | 'doctor' | 'adopt' | 'add' | 'market' | 'update' | 'team' | 'policy') => void;
 }
 
-export function AddView({ agents, reload, toast }: Props) {
+export function AddView({ agents, reload, toast, onOpenDetail, onNavigateTab }: Props) {
   const [source, setSource] = useState('');
   const [name, setName] = useState('');
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -167,6 +169,26 @@ export function AddView({ agents, reload, toast }: Props) {
               ))}
             </div>
           )}
+          <div className="result-actions" style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+            {onOpenDetail && (
+              <button
+                type="button"
+                className="btn small-btn primary"
+                onClick={() => onOpenDetail(result.name)}
+              >
+                查看详情与 Agent 适配 ↗
+              </button>
+            )}
+            {onNavigateTab && (
+              <button
+                type="button"
+                className="btn small-btn subtle"
+                onClick={() => onNavigateTab('matrix')}
+              >
+                返回开关矩阵 ↗
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
