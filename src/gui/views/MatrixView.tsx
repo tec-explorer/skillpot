@@ -291,14 +291,55 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
             </tbody>
           </table>
         </div>
-      </div>
-      {filteredSkills.length > visible && (
-        <div className="load-more">
-          <button className="btn" onClick={() => setVisible((v) => v + 20)}>
-            加载更多（已显示 {visible}/{filteredSkills.length}）
-          </button>
+        <div className="matrix-card-footer">
+          <div className="matrix-footer-left">
+            {filteredSkills.length > visible ? (
+              <div className="matrix-load-group">
+                <button
+                  className="btn-footer primary"
+                  onClick={() => setVisible((v) => v + 20)}
+                >
+                  加载下 20 项（已显示 {visible}/{filteredSkills.length}）
+                </button>
+                <button
+                  className="btn-footer subtle"
+                  onClick={() => setVisible(filteredSkills.length)}
+                >
+                  展开全部 ({filteredSkills.length})
+                </button>
+              </div>
+            ) : (
+              <div className="matrix-total-badge">
+                <span>已显示全部 {filteredSkills.length} 项 Skill</span>
+                {visible > 20 && filteredSkills.length > 20 && (
+                  <button
+                    className="btn-footer link"
+                    onClick={() => setVisible(20)}
+                  >
+                    收起至前 20 项
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="matrix-footer-right">
+            <div className="legend-section compact">
+              <span className="legend-label">开关：</span>
+              <span className="legend-pill ok" title="Agent 已创建软链接启用">✓ 开放</span>
+              <span className="legend-pill warn" title="配置记录开放但磁盘软链接缺失">⚠ 漂移</span>
+              <span className="legend-pill conflict" title="冲突或非受管实体文件">! 异常</span>
+              <span className="legend-pill off" title="未对该 Agent 开放">· 未开</span>
+            </div>
+            <div className="legend-sep" />
+            <div className="legend-section compact">
+              <span className="legend-label">适配：</span>
+              <span className="legend-item" title="匹配良好且开销适中"><span className="legend-dot rec" /> 推荐</span>
+              <span className="legend-item" title="需留意上下文开销或潜在限制"><span className="legend-dot caution" /> 需留意</span>
+              <span className="legend-item" title="缺少依赖工具或渠道冲突"><span className="legend-dot incompatible" /> 缺依赖</span>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
       {filteredSkills.length === 0 && (
         <p className="dim" style={{ textAlign: 'center', marginTop: 16 }}>
           没有匹配的 skill（换个关键词或切回「全部」）。
@@ -377,22 +418,6 @@ export function MatrixView({ state, reload, toast, onOpenDetail }: Props) {
           )}
         </div>
       )}
-      <div className="matrix-footer-legend">
-        <div className="legend-section">
-          <span className="legend-label">开关状态：</span>
-          <span className="legend-pill ok">✓ 已开放</span>
-          <span className="legend-pill warn">⚠ 漂移缺失</span>
-          <span className="legend-pill conflict">! 异常/冲突</span>
-          <span className="legend-pill off">· 未开放（点击切换）</span>
-        </div>
-        <div className="legend-section">
-          <span className="legend-label">适配评估：</span>
-          <span className="legend-item"><span className="legend-dot rec" /> 推荐</span>
-          <span className="legend-item"><span className="legend-dot caution" /> 需留意</span>
-          <span className="legend-item"><span className="legend-dot incompatible" /> 缺依赖/不兼容</span>
-          <span className="legend-hint">（悬停单元格查看开销与依赖诊断）</span>
-        </div>
-      </div>
     </div>
   );
 }

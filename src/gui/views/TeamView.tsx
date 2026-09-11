@@ -103,42 +103,68 @@ export function TeamView({ reload, toast }: Props) {
   };
 
   return (
-    <div className="panel">
+    <div className="panel team-panel">
       <div className="doctor-head">
-        <h2>团队对齐</h2>
-        <div className="modal-actions">
-          <button className="btn small-btn" onClick={() => runSync(true)} disabled={!report || syncing}>
-            {syncing ? '执行中…' : '预演（不落地）'}
-          </button>
-          <button className="btn" onClick={() => runSync(false)} disabled={!report || syncing}>
-            {syncing ? '对齐中…' : '对齐'}
-          </button>
-          <button className="btn small-btn" onClick={exportManifest} disabled={syncing}>
-            导出清单
+        <div>
+          <h2>团队配置对齐 (Team Sync)</h2>
+          <div className="dim small">
+            通过版本锁清单 <code>.skillpot.yaml</code> 跨成员统一技能来源、版本指纹与 Agent 开放矩阵
+          </div>
+        </div>
+        <div className="doctor-actions">
+          <button
+            className="btn small-btn subtle"
+            onClick={exportManifest}
+            disabled={syncing || !file.trim()}
+            title="将当前工作区与中央仓库状态导出至该清单文件"
+          >
+            导出当前配置至清单
           </button>
         </div>
       </div>
-      <p className="dim">
-        在项目仓库根放置 <code>.skillpot.yaml</code>（用「导出清单」从当前中央仓库生成），
-        提交进项目后，团队成员填入路径点「对齐」即可一键安装缺失、对齐版本锁并应用开放矩阵。
-      </p>
-      <div className="form-row">
-        <input
-          className="input grow mono"
-          placeholder="/path/to/your-project/.skillpot.yaml"
-          value={file}
-          onChange={(e) => setFile(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && applyPath()}
-        />
-        <button className="btn small-btn" onClick={applyPath} disabled={!file.trim()}>
-          预览清单
-        </button>
+
+      <div className="team-file-card">
+        <div className="form-group">
+          <label className="form-label">
+            <span>项目清单文件路径 (支持绝对路径或相对路径)</span>
+          </label>
+          <div className="team-input-row">
+            <input
+              className="input grow mono"
+              placeholder="例如: /path/to/my-repo/.skillpot.yaml"
+              value={file}
+              onChange={(e) => setFile(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && applyPath()}
+            />
+            <button className="btn small-btn" onClick={applyPath} disabled={!file.trim() || loading}>
+              {loading ? '加载中…' : '预览清单'}
+            </button>
+            {report && (
+              <>
+                <button
+                  className="btn small-btn subtle"
+                  onClick={() => runSync(true)}
+                  disabled={syncing}
+                >
+                  {syncing ? '执行中…' : '预演对齐'}
+                </button>
+                <button
+                  className="btn small-btn primary"
+                  onClick={() => runSync(false)}
+                  disabled={syncing}
+                >
+                  {syncing ? '对齐中…' : '执行一键对齐'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {!report ? null : (
         <>
           {report.warnings.length > 0 && (
-            <div className="lint-box">
+            <div className="lint-box" style={{ marginTop: 14 }}>
               {report.warnings.map((w, i) => (
                 <div key={i} className="warn-text">
                   ⚠ {w}
@@ -147,29 +173,51 @@ export function TeamView({ reload, toast }: Props) {
             </div>
           )}
           {report.skills.length === 0 ? (
-            <p className="dim">清单里没有声明任何 skill。</p>
+            <p className="dim" style={{ marginTop: 14 }}>清单里没有声明任何 skill。</p>
           ) : (
-            <table className="matrix update-table">
+            <table className="matrix update-table" style={{ marginTop: 14 }}>
               <thead>
                 <tr>
-                  <th className="skill-col">Skill</th>
+                  <th className="skill-col">Skill 技能</th>
                   <th>来源</th>
-                  <th>开放</th>
-                  <th>本机状态</th>
+                  <th>开放 Agent</th>
+                  <th>本机状态与一致性</th>
                 </tr>
               </thead>
               <tbody>
                 {report.skills.map((s) => (
                   <tr key={s.skill}>
-                    <td className="skill-name">{s.skill}</td>
+                    <td className="skill-name bold">{s.skill}</td>
                     <td className="dim small mono src" title={s.source}>
                       {s.source}
                     </td>
                     <td className="dim small">
-                      {Object.keys(s.expose).join('、') || '—'}
+                      {Object.keys(s.expose).length > 0 ? (
+                        <span className="expose-pills">
+                          {Object.keys(s.expose).map((ag) => (
+                            <span key={ag} className="agent-tag-badge mini">
+                              {ag}
+                            </span>
+                          ))}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
                     </td>
-                    <td className={s.checksumMatch === false ? 'warn-text' : ''}>
-                      {statusOf(s)}
+                    <td>
+                      <span
+                        className={`status-pill ${
+                          s.checksumMatch === true
+                            ? 'latest'
+                            : s.checksumMatch === false
+                              ? 'outdated'
+                              : s.storeMissing
+                                ? 'error'
+                                : 'normal'
+                        }`}
+                      >
+                        {statusOf(s)}
+                      </span>
                     </td>
                   </tr>
                 ))}

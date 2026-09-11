@@ -47,64 +47,119 @@ export function AddView({ agents, reload, toast }: Props) {
   };
 
   return (
-    <div className="panel">
-      <h2>安装 skill</h2>
-      <p className="dim">
-        本地目录或 git URL（支持 <code>repo#subdir</code> 定位子目录）。安装后内容拷入中央仓库，
-        默认不对任何 Agent 开放。
-      </p>
-      <div className="form-row">
-        <input
-          className="input grow"
-          placeholder="~/path/to/my-skill 或 https://github.com/owner/skills.git#subdir"
-          value={source}
-          onChange={(e) => setSource(e.target.value)}
-        />
-      </div>
-      <div className="form-row">
-        <input
-          className="input"
-          style={{ width: 220 }}
-          placeholder="skill 名（可选）"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <div className="agent-picker">
-          {agents.map((a) => (
-            <label key={a.id} className={a.installed ? 'pick' : 'pick off'}>
-              <input
-                type="checkbox"
-                disabled={!a.installed}
-                checked={picked.has(a.id)}
-                onChange={() => toggleAgent(a.id)}
-              />
-              {a.name}
-            </label>
-          ))}
+    <div className="panel add-panel">
+      <div className="doctor-head">
+        <div>
+          <h2>安装 skill 到中央仓库</h2>
+          <div className="dim small">
+            支持本地目录或 Git URL（带 <code>#subdir</code> 定位子目录），安装后受管于 SkillPot
+          </div>
         </div>
       </div>
-      <button className="btn" onClick={submit} disabled={busy || !source.trim()}>
-        {busy ? '安装中…（git 来源需克隆，可能稍慢）' : '安装'}
-      </button>
+
+      <div className="add-form-card">
+        <div className="form-group">
+          <label className="form-label">
+            <span>技能来源路径或 Git URL</span>
+            <span className="dim small">（必填）</span>
+          </label>
+          <input
+            className="input full-width"
+            placeholder="例如: https://github.com/owner/skills.git#subdir 或 ~/source/my-skill"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+          />
+          <div className="input-hint">
+            <span>格式提示：</span>
+            <code>repo.git#subdir</code>（定位子目录） · <code>~/path/to/skill</code>（本地目录）
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">
+            <span>技能自定义名称</span>
+            <span className="dim small">（可选，留空则自动从目录或 SKILL.md 解析）</span>
+          </label>
+          <input
+            className="input"
+            style={{ maxWidth: 360 }}
+            placeholder="例如: my-custom-skill"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+
+        <div className="form-group">
+          <div className="form-label-row">
+            <span className="form-label">安装后立即开放给 Agent（可选）</span>
+            <div className="agent-picker-quick">
+              <button
+                type="button"
+                className="bulk-pill-btn"
+                onClick={() => setPicked(new Set(agents.filter((a) => a.installed).map((a) => a.id)))}
+              >
+                全选已安装
+              </button>
+              <span className="bulk-divider" />
+              <button
+                type="button"
+                className="bulk-pill-btn"
+                onClick={() => setPicked(new Set())}
+              >
+                清空
+              </button>
+            </div>
+          </div>
+          <div className="agent-chips-grid">
+            {agents.map((a) => (
+              <label
+                key={a.id}
+                className={`agent-chip ${a.installed ? '' : 'disabled'} ${picked.has(a.id) ? 'checked' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  disabled={!a.installed}
+                  checked={picked.has(a.id)}
+                  onChange={() => toggleAgent(a.id)}
+                />
+                <span className="agent-chip-name">{a.name}</span>
+                {!a.installed && <span className="agent-chip-off">未安装</span>}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="form-actions">
+          <button className="btn primary" onClick={submit} disabled={busy || !source.trim()}>
+            {busy ? '安装中…（Git 来源需克隆，可能稍慢）' : '立即安装到中央仓库'}
+          </button>
+        </div>
+      </div>
 
       {result && (
         <div className="result-box">
-          <div className="result-title">✔ {result.name}</div>
-          {result.description && <div className="dim">{result.description.slice(0, 160)}</div>}
-          <div className="dim mono small">
-            source: {result.source} · checksum: {result.checksum.slice(0, 18)}…
+          <div className="result-title">✔ 安装成功: {result.name}</div>
+          {result.description && <div className="result-desc">{result.description}</div>}
+          <div className="result-meta">
+            <span className="meta-pill">来源: {result.source}</span>
+            <span className="meta-pill mono">校验和: {result.checksum.slice(0, 16)}…</span>
           </div>
           {result.enabled.length > 0 && (
-            <div>已开放给:{result.enabled.join('、')}</div>
+            <div className="result-enabled">
+              <span>已开放给:</span>
+              {result.enabled.map((agent) => (
+                <span key={agent} className="agent-tag-badge">✓ {agent}</span>
+              ))}
+            </div>
           )}
           {result.skipped.map((s, i) => (
-            <div key={i} className="warn-text">
-              ⚠ {s.agent}: {s.reason}
+            <div key={i} className="dim small warn-text">
+              ⚠ 跳过 {s.agent}: {s.reason}
             </div>
           ))}
           {result.lint.length > 0 && (
-            <div className="lint-box">
-              <div className="dim">安装即体检，发现 {result.lint.length} 个问题:</div>
+            <div className="lint-box" style={{ marginTop: 10 }}>
+              <div className="dim small">静态安全扫描发现 {result.lint.length} 个问题:</div>
               {result.lint.map((li, i) => (
                 <div key={i} className={li.level === 'error' ? 'warn-text' : 'dim'}>
                   {li.level === 'error' ? '✗' : '⚠'} {li.message}

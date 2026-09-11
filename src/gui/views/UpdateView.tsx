@@ -73,19 +73,21 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
   }
 
   return (
-    <div className="panel">
+    <div className="panel update-panel">
       <div className="doctor-head">
-        <h2>维护</h2>
-        <button className="btn" onClick={checkAll} disabled={busy}>
-          {busy ? '检查中…（需克隆远端，可能稍慢）' : '检查更新（git 来源）'}
+        <div>
+          <h2>技能维护与更新</h2>
+          <div className="dim small">
+            检查 Git 来源的技能远端提交，原位拉取更新（软链接指向保持不变，无需重新关联）
+          </div>
+        </div>
+        <button className="btn small-btn primary" onClick={checkAll} disabled={busy}>
+          {busy ? '检查中…（拉取远端）' : '检查更新（Git 来源）'}
         </button>
       </div>
-      <p className="dim">
-        git 来源的 skill 可原位更新（symlink 指向不变，无需重连）；本地来源跳过。点击 skill 名查看详情与卸载。
-      </p>
 
       {skills.length > 0 && (
-        <div className="toolbar">
+        <div className="toolbar" style={{ marginTop: 14 }}>
           <input
             className="input grow"
             placeholder="搜索名称 / 来源…"
@@ -93,7 +95,7 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
             onChange={(e) => setQuery(e.target.value)}
           />
           <span className="dim small">
-            {filtered.length}/{skills.length}
+            {filtered.length}/{skills.length} 项
           </span>
         </div>
       )}
@@ -101,10 +103,10 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
       <table className="matrix update-table">
         <thead>
           <tr>
-            <th className="skill-col">Skill</th>
-            <th>来源</th>
-            <th>状态</th>
-            <th>操作</th>
+            <th className="skill-col">Skill 技能</th>
+            <th>来源与类型</th>
+            <th>更新状态</th>
+            <th style={{ width: 100, textAlign: 'center' }}>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -114,33 +116,54 @@ export function UpdateView({ skills, reload, toast, onOpenDetail }: Props) {
             return (
               <tr key={s.name}>
                 <td className="skill-name link" onClick={() => onOpenDetail(s.name)}>
-                  {s.name}
+                  <span className="bold">{s.name}</span>
+                  <span className="dim small" style={{ marginLeft: 6 }}>↗</span>
                 </td>
-                <td className="dim small mono src" title={s.source}>
-                  {s.source}
-                </td>
-                <td className={st?.status === 'outdated' ? 'warn-text' : ''}>
-                  {st ? UPDATE_STATUS_LABEL[st.status] : '—'}
-                  {st?.diff && (
-                    <span className="dim small">
-                      {' '}
-                      diff +{st.diff.added.length} ~{st.diff.modified.length} -{st.diff.removed.length}
-                    </span>
-                  )}
-                  {st?.detail && <span className="dim small"> {st.detail}</span>}
+                <td className="src-cell">
+                  <span className={`src-badge ${git ? 'git' : 'local'}`}>
+                    {git ? 'Git' : '本地'}
+                  </span>
+                  <span className="dim small mono src-text" title={s.source}>
+                    {s.source}
+                  </span>
                 </td>
                 <td>
+                  <div className="update-status-wrap">
+                    {st ? (
+                      <span className={`status-pill ${st.status}`}>
+                        {UPDATE_STATUS_LABEL[st.status]}
+                      </span>
+                    ) : (
+                      <span className="dim small">未检查</span>
+                    )}
+                    {st?.diff && (
+                      <span className="diff-badges">
+                        {st.diff.added.length > 0 && (
+                          <span className="diff-pill add">+{st.diff.added.length}</span>
+                        )}
+                        {st.diff.modified.length > 0 && (
+                          <span className="diff-pill mod">~{st.diff.modified.length}</span>
+                        )}
+                        {st.diff.removed.length > 0 && (
+                          <span className="diff-pill del">-{st.diff.removed.length}</span>
+                        )}
+                      </span>
+                    )}
+                    {st?.detail && <span className="dim small"> ({st.detail})</span>}
+                  </div>
+                </td>
+                <td style={{ textAlign: 'center' }}>
                   {git ? (
                     <button
-                      className="btn small-btn"
+                      className={`btn small-btn ${st?.status === 'outdated' ? 'primary' : 'subtle'}`}
                       disabled={updating !== null || st?.status !== 'outdated'}
                       onClick={() => apply(s.name)}
-                      title={st?.status === 'outdated' ? '应用更新' : '先检查更新'}
+                      title={st?.status === 'outdated' ? '原位拉取并更新' : '当前无待更新内容'}
                     >
                       {updating === s.name ? '更新中…' : '更新'}
                     </button>
                   ) : (
-                    <span className="dim small">—</span>
+                    <span className="dim small">本地跳过</span>
                   )}
                 </td>
               </tr>

@@ -69,6 +69,26 @@ export function AdoptView({ rev, reload, toast }: Props) {
     });
   };
 
+  const selectAgentAll = (agentId: string, skills: { name: string; valid: boolean }[]) => {
+    setChecked((p) => {
+      const next = new Set(p);
+      for (const s of skills) {
+        if (s.valid) next.add(keyOf(agentId, s.name));
+      }
+      return next;
+    });
+  };
+
+  const unselectAgentAll = (agentId: string, skills: { name: string }[]) => {
+    setChecked((p) => {
+      const next = new Set(p);
+      for (const s of skills) {
+        next.delete(keyOf(agentId, s.name));
+      }
+      return next;
+    });
+  };
+
   const submit = async () => {
     if (busy || !agents) return;
     const picks = agents.flatMap((a) =>
@@ -108,17 +128,42 @@ export function AdoptView({ rev, reload, toast }: Props) {
   return (
     <div className="panel">
       <div className="doctor-head">
-        <h2>收编已有 skill{total > 0 ? `（发现 ${total} 个）` : ''}</h2>
+        <div>
+          <h2>收编已有 skill{total > 0 ? `（发现 ${total} 个）` : ''}</h2>
+          <div className="dim small">将各 Agent 目录中的真实 skill 移入或链接至中央仓库</div>
+        </div>
         <button
-          className="btn"
+          className="btn small-btn primary"
           onClick={submit}
           disabled={busy || total === 0 || checked.size === 0}
         >
           {busy ? '收编中…' : `收编勾选项（${checked.size}）`}
         </button>
       </div>
+
+      <div className="adopt-options-card">
+        <label className="adopt-option-item">
+          <input type="checkbox" checked={move} onChange={(e) => setMove(e.target.checked)} />
+          <div className="adopt-opt-text">
+            <span className="opt-title">移动模式（推荐）</span>
+            <span className="opt-desc">内容拷入中央仓库后，原目录替换为指向仓库的软链接，来源 Agent 继续无感可用</span>
+          </div>
+        </label>
+        <label className="adopt-option-item">
+          <input
+            type="checkbox"
+            checked={enableAll}
+            onChange={(e) => setEnableAll(e.target.checked)}
+          />
+          <div className="adopt-opt-text">
+            <span className="opt-title">收编后自动开放</span>
+            <span className="opt-desc">在 SkillPot 开关矩阵中立即将收编成功的 skill 标记为对来源 Agent 开放</span>
+          </div>
+        </label>
+      </div>
+
       {total > 0 && (
-        <div className="toolbar">
+        <div className="toolbar" style={{ marginTop: 14 }}>
           <input
             className="input grow"
             placeholder="搜索名称 / 路径…"
@@ -130,20 +175,6 @@ export function AdoptView({ rev, reload, toast }: Props) {
           </span>
         </div>
       )}
-      <div className="form-row options">
-        <label className="pick">
-          <input type="checkbox" checked={move} onChange={(e) => setMove(e.target.checked)} />
-          移动模式（内容拷入后，原目录替换为 symlink，来源 Agent 继续可用）
-        </label>
-        <label className="pick">
-          <input
-            type="checkbox"
-            checked={enableAll}
-            onChange={(e) => setEnableAll(e.target.checked)}
-          />
-          收编后开放给其来源 Agent
-        </label>
-      </div>
 
       {total === 0 ? (
         <p className="dim">
@@ -154,26 +185,50 @@ export function AdoptView({ rev, reload, toast }: Props) {
           .filter((a) => a.skills.length > 0)
           .map((a) => (
             <div key={a.id} className="adopt-group">
-              <div className="adopt-agent">{a.name}</div>
-              {a.skills.map((s) => {
-                const k = keyOf(a.id, s.name);
-                return (
-                  <label key={k} className={s.valid ? 'adopt-item' : 'adopt-item off'}>
-                    <input
-                      type="checkbox"
-                      disabled={!s.valid}
-                      checked={checked.has(k)}
-                      onChange={() => toggle(k)}
-                    />
-                    <span className="mono">{s.name}</span>
-                    <span className="dim small path">{s.path}</span>
-                    {s.inStore && (
-                      <span className="badge badge-warn">仓库已有同名,move 时替换为 symlink</span>
-                    )}
-                    {!s.valid && <span className="badge badge-error">目录名不合法</span>}
-                  </label>
-                );
-              })}
+              <div className="adopt-agent-header">
+                <div className="adopt-agent-title">
+                  <span className="adopt-agent-name">{a.name}</span>
+                  <span className="dim small">({a.skills.length} 项)</span>
+                </div>
+                <div className="adopt-agent-actions">
+                  <button
+                    type="button"
+                    className="bulk-pill-btn"
+                    onClick={() => selectAgentAll(a.id, a.skills)}
+                  >
+                    全选
+                  </button>
+                  <span className="bulk-divider" />
+                  <button
+                    type="button"
+                    className="bulk-pill-btn"
+                    onClick={() => unselectAgentAll(a.id, a.skills)}
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+              <div className="adopt-items-grid">
+                {a.skills.map((s) => {
+                  const k = keyOf(a.id, s.name);
+                  return (
+                    <label key={k} className={s.valid ? 'adopt-item' : 'adopt-item off'}>
+                      <input
+                        type="checkbox"
+                        disabled={!s.valid}
+                        checked={checked.has(k)}
+                        onChange={() => toggle(k)}
+                      />
+                      <span className="mono bold">{s.name}</span>
+                      <span className="dim small path">{s.path}</span>
+                      {s.inStore && (
+                        <span className="badge badge-warn">仓库已有同名,move 时替换为 symlink</span>
+                      )}
+                      {!s.valid && <span className="badge badge-error">目录名不合法</span>}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           ))
       )}

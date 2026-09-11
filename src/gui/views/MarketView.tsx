@@ -144,19 +144,24 @@ export function MarketView({ rev, reload, toast }: Props) {
   const current = sources.find((s) => s.url === selected);
 
   return (
-    <div className="panel">
+    <div className="panel market-panel">
       <div className="doctor-head">
-        <h2>市场</h2>
-        <button className="btn" onClick={() => setShowAdd((v) => !v)}>
-          {showAdd ? '取消' : '添加源'}
-        </button>
+        <div>
+          <h2>技能市场 (Market)</h2>
+          <div className="dim small">浏览生态开源与官方技能，一键拉取并安装至本地中央仓库</div>
+        </div>
+        <div className="doctor-actions">
+          <button className="btn small-btn subtle" onClick={() => setShowAdd((v) => !v)}>
+            {showAdd ? '取消' : '+ 添加源'}
+          </button>
+        </div>
       </div>
 
       {showAdd && (
-        <div className="form-row">
+        <div className="form-row add-source-row">
           <input
             className="input grow"
-            placeholder="git 仓库地址，如 https://github.com/owner/skills.git"
+            placeholder="Git 仓库地址，如 https://github.com/owner/skills.git"
             value={newUrl}
             onChange={(e) => setNewUrl(e.target.value)}
           />
@@ -167,39 +172,44 @@ export function MarketView({ rev, reload, toast }: Props) {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
           />
-          <button className="btn" onClick={addSource} disabled={!newUrl.trim()}>
-            确定
+          <button className="btn small-btn primary" onClick={addSource} disabled={!newUrl.trim()}>
+            确定添加
           </button>
         </div>
       )}
 
-      <div className="form-row">
-        {sources.map((s) => (
-          <button
-            key={s.url}
-            className={s.url === selected ? 'seg-btn active' : 'seg-btn'}
-            onClick={() => pickSource(s.url)}
-            title={s.url}
-          >
-            {s.name}
-            {s.builtin && <span className="dim">（内置）</span>}
-          </button>
-        ))}
+      <div className="market-sources-bar">
+        <div className="sources-list">
+          {sources.map((s) => (
+            <button
+              key={s.url}
+              className={s.url === selected ? 'source-pill active' : 'source-pill'}
+              onClick={() => pickSource(s.url)}
+              title={s.url}
+            >
+              <span>{s.name}</span>
+              {s.builtin && <span className="source-builtin-badge">内置</span>}
+            </button>
+          ))}
+        </div>
         {current && !current.builtin && (
-          <button className="seg-btn danger-btn" onClick={() => removeSource(current.url)}>
+          <button className="bulk-pill-btn danger" onClick={() => removeSource(current.url)}>
             移除此源
           </button>
         )}
       </div>
 
-      <div className="form-row" style={{ justifyContent: 'space-between' }}>
-        <span className="dim small mono">{selected}</span>
+      <div className="market-repo-card">
+        <div className="repo-meta">
+          <span className="repo-url mono" title={selected}>{selected}</span>
+          <span className="repo-cache-tag">{clonedNote || '缓存就绪'}</span>
+        </div>
         <button className="btn small-btn" onClick={() => scan(selected, true)} disabled={scanning}>
-          {scanning ? '克隆/扫描中…（首次较慢）' : '刷新'}
+          {scanning ? '克隆/扫描中…' : '刷新缓存'}
         </button>
       </div>
 
-      <div className="toolbar">
+      <div className="toolbar" style={{ marginTop: 14 }}>
         <input
           className="input grow"
           placeholder="搜索名称 / 说明 / 子目录…"
@@ -212,12 +222,12 @@ export function MarketView({ rev, reload, toast }: Props) {
         <span className="dim small">
           {scanning
             ? '扫描中…'
-            : `${filteredSkills.length}/${(skills ?? []).length} · ${clonedNote}`}
+            : `${filteredSkills.length}/${(skills ?? []).length} 项`}
         </span>
       </div>
 
       {!skills ? null : skills.length === 0 ? (
-        <p className="dim">该仓库中没有找到 SKILL.md 目录。</p>
+        <p className="dim">该仓库中没有找到 SKILL.md 技能目录。</p>
       ) : (
         <>
           {visibleSkills.length === 0 ? (
@@ -226,10 +236,10 @@ export function MarketView({ rev, reload, toast }: Props) {
             <table className="matrix update-table">
               <thead>
                 <tr>
-                  <th className="skill-col">Skill</th>
+                  <th className="skill-col">Skill 技能</th>
                   <th>说明</th>
-                  <th>子目录</th>
-                  <th>操作</th>
+                  <th style={{ width: 150 }}>子目录</th>
+                  <th style={{ width: 140, textAlign: 'center' }}>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,12 +250,15 @@ export function MarketView({ rev, reload, toast }: Props) {
                       title="点击查看详情与提示词"
                       onClick={() => setPreviewSkill(s)}
                     >
-                      {s.name}
+                      <div className="skill-market-title">
+                        <span>{s.name}</span>
+                        {s.installed && <span className="badge-installed">已装</span>}
+                      </div>
                     </td>
-                    <td className="dim small">{s.description.slice(0, 90)}</td>
+                    <td className="dim small">{s.description || '（无说明）'}</td>
                     <td className="dim small mono">{s.subdir}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', alignItems: 'center' }}>
                         <button
                           className="btn small-btn ghost"
                           onClick={() => setPreviewSkill(s)}
@@ -254,10 +267,10 @@ export function MarketView({ rev, reload, toast }: Props) {
                           详情
                         </button>
                         {s.installed ? (
-                          <span className="dim small">已安装</span>
+                          <span className="dim small">已就绪</span>
                         ) : (
                           <button
-                            className="btn small-btn"
+                            className="btn small-btn primary"
                             disabled={installing !== null}
                             onClick={() => install(s)}
                           >
@@ -273,14 +286,13 @@ export function MarketView({ rev, reload, toast }: Props) {
           )}
           {filteredSkills.length > visible && (
             <div className="load-more">
-              <button className="btn" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
+              <button className="btn small-btn subtle" onClick={() => setVisible((v) => v + PAGE_SIZE)}>
                 加载更多（已显示 {visible}/{filteredSkills.length}）
               </button>
             </div>
           )}
-          <p className="legend">
-            安装 = 拷贝进中央仓库，默认不对任何 Agent 开放（去「开关矩阵」打勾或安装时先收着）。
-            官方源中 docx/pdf/pptx/xlsx 为 source-available 许可，使用前请阅原仓库说明。
+          <p className="legend" style={{ marginTop: 14 }}>
+            💡 安装提示：内容拷贝进中央仓库后，默认不对任何 Agent 开放，可至「开关矩阵」按需勾选开放。
           </p>
         </>
       )}
